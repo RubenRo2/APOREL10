@@ -92,3 +92,57 @@ Los mensajes deben seguir el estándar de commits semánticos (*Conventional Com
 3. Verificar que los bloques de código cierren correctamente con triple tilde inversa y que no existan enlaces rotos.
 4. Realizar el commit con prefijo `docs:` (ej. `git commit -m "docs: actualizar instrucciones de arranque en README"`).
 5. Fusionar la rama en `dev` siguiendo el procedimiento habitual.
+
+## 7. Pruebas automatizadas
+
+El proyecto usa **pytest**, añadido como dependencia de desarrollo (`uv add --dev pytest`). Las pruebas comprueban los módulos de lógica, así que no necesitan abrir la interfaz gráfica.
+
+### 7.1. Ejecutar las pruebas
+
+Desde la raíz del repositorio:
+
+```bash
+uv run pytest                          # todas las pruebas
+uv run pytest -v                       # mostrando el nombre de cada prueba
+uv run pytest tests/test_paquete.py    # solo un archivo
+```
+
+Cada prueba que pasa aparece como `.` (`PASSED` con `-v`) y cada una que falla como `F` (`FAILED`). Si alguna falla, el resumen final indica el archivo y la función (`FAILED tests/<archivo>.py::<prueba>`) y, más arriba, el `assert` que no se ha cumplido junto con los valores obtenidos.
+
+### 7.2. Añadir pruebas nuevas
+
+- Las pruebas van en la carpeta `tests/`, separada del código fuente, con **un archivo por cada módulo** de la aplicación: el módulo `src/aporel10/importacion.py` se prueba en `tests/test_importacion.py`.
+- Cada prueba es una función cuyo nombre empieza por `test_` y comprueba el resultado con `assert`. Para comprobar que se lanza una excepción se usa `pytest.raises`.
+- El código se importa **por el nombre del paquete**, nunca modificando `sys.path` ni con rutas relativas:
+
+  ```python
+  from aporel10.importacion import importar_datos
+  ```
+
+### 7.3. Datos de las pruebas
+
+- Las pruebas **no** usan archivos de datos del repositorio ni de la carpeta local `data/` (en GitHub y en los ordenadores de los demás no existen).
+- Los datos se escriben en el propio código de la prueba: unas pocas filas con valores conocidos, incluidos los casos especiales que se quieran comprobar (valores inexistentes, columnas no numéricas...).
+- Si una prueba necesita un archivo, lo crea al ejecutarse en una carpeta temporal con el parámetro `tmp_path` de pytest, que se borra automáticamente:
+
+  ```python
+  import pandas as pd
+
+  from aporel10.importacion import importar_datos
+
+
+  def test_importa_csv(tmp_path):
+      ruta = tmp_path / "datos.csv"
+      pd.DataFrame({"x": [1, 2, 3], "y": [2, 4, 6]}).to_csv(ruta, index=False)
+
+      datos = importar_datos(ruta)
+
+      assert list(datos.columns) == ["x", "y"]
+  ```
+
+  (Es un ejemplo: el módulo `importacion` y pandas llegarán con la historia #10.)
+
+### 7.4. Reglas de fusión según el resultado de las pruebas
+
+- Antes de fusionar una rama de trabajo (`feature`, `fix` o `docs`) en `dev`, se actualiza con los últimos cambios de `dev` (apartado 3, paso 3) y se ejecuta `uv run pytest`. **Solo se fusiona si todas las pruebas pasan.**
+- `dev` solo se fusiona en `main` si todas las pruebas pasan sobre `dev`.
