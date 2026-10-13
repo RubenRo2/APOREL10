@@ -1,97 +1,87 @@
-# Guia de contribución
+# Guía de contribución
 
 Normas de desarrollo, estilo y flujo de trabajo del proyecto **APOREL10**
 
-## 1. Normas basicas de uso del repositorio
+## 1. Normas básicas del repositorio
 
-- **Prohibición de subida de datos** : Queda prohibido commitear o subir archivos de datos(CSV, SQlite, Excel...)
-- **Uso exclusivo de la carpeta data/** : Todo dato necesario para desarrollo, pruebas o modelado debe ubicarse localmente en la carpeta `data/`, la cual está excluida del control de versiones mediante `.gitignore`.
-- Comprueba siempre `git status` antes de confirmar cualquier cambio para evitar el seguimiento accidental de datos.
+- Prohibido subir archivos de datos (CSV, SQLite, Excel...).
+- Los datos se guardan solo en local, en la carpeta `data/`, excluida con `.gitignore`.
+- Ejecuta `git status` antes de cada commit.
 
 ## 2. Modelo de ramas
 
-- **`main`**: Rama de producción y versiones finales estables. Solo recibe fusiones desde `dev` al momento de realizar entregas.
-- **`dev`**: Rama principal de integración activa del equipo.
-- **Regla estricta**: Prohibido hacer commits directamente en `main` o en `dev`.
+- **`main`**: versiones estables. Solo recibe cambios desde `dev` al publicar una release.
+- **`dev`**: integración del desarrollo, creada desde `main` al inicio del proyecto.
+- **Prohibido commitear directamente en `main` o `dev`.**
 
-### Formato de nombres de ramas
-Todas las ramas de trabajo nacen de `dev` y deben seguir la nomenclatura `<prefijo>/<numero>-<descripcion-corta>`:
-- `feature/<id>-<descripcion>`: Para nuevas funcionalidades (ej. `feature/10-importacion-datos`).
-- `fix/<id>-<descripcion>`: Para resolución de errores o bugs (ej. `fix/04-error-parser`).
-- `docs/<id>-<descripcion>`: Para creación o actualización de documentación (ej. `docs/02-documentacion-inicial`).
+Una rama por tarea, creada desde `dev`, en minúsculas y con guiones. El nombre incluye el número de la tarea en Taiga (`<numero>`). Las ramas no se eliminan una vez fusionadas.
 
-## 3. Flujo de trabajo con ramas
+| Funcionalidad | `feature/<numero>-<descripcion>` | 
+| Corrección | `fix/<numero>-<descripcion>` | 
+| Documentación | `docs/<numero>-<descripcion>` | 
 
-1. **Crear la rama de trabajo** (siempre partiendo de `dev` actualizado):
-   ```bash
-   git switch dev
-   git pull origin dev
-   git switch -c feature/03-nombre-funcionalidad
-   ```
+## 3. Flujo de trabajo
 
-2. **Desarrollar y commitear**: Realizar cambios atómicos y guardar con commits semánticos.
+Los cambios se integran en `dev` mediante Pull Requests.
 
-3. **Actualizar la rama con `dev`** antes de fusionar:
-   ```bash
-   git fetch origin
-   git merge origin/dev
-   ```
+```bash
+# 1. Crear la rama desde dev actualizado
+git switch dev
+git pull origin dev
+git switch -c feature/10-importacion-datos
 
-4. **Fusionar en `dev` y limpiar**:
-   ```bash
-   git switch dev
-   git merge feature/03-nombre-funcionalidad
-   git push origin dev
-   git branch -d feature/03-nombre-funcionalidad
-   git push origin --delete feature/03-nombre-funcionalidad
-   ```   
+# 2. Actualizar la rama con dev (con frecuencia y antes de abrir la Pull Request)
+git fetch origin
+git merge origin/dev
 
-## 4. Estilo de los mensajes de commit
+# 3. Subir la rama
+git push -u origin feature/10-importacion-datos
+```
 
-Los mensajes deben seguir el estándar de commits semánticos (*Conventional Commits*), usando descripciones breves en presente o imperativo:
+4. Abrir en GitHub una Pull Request de la rama hacia `dev`.
+5. Otro miembro del equipo la revisa (sección 10) y, si está correcta, la fusiona (merge) en `dev`.
+6. La rama se conserva tras el merge.
 
-```text 
+## 4. Mensajes de commit (Conventional Commits)
+
+```text
 <type>[optional scope]: <description>
 
 [optional body]
 
 [optional footer(s)]
 ```
-### Elementos principales:
-– **`type`**: Tipo de cambio que introduce el commit
-    - `feat`: Nueva funcionalidad para el usuario.
-    - `fix`: Corrección de un error.
-    - `docs`: Modificaciones en documentación (`README.md`, `CONTRIBUTING.md`, etc.).
-    - `refactor`: Reestructuración de código sin alterar el comportamiento externo.
-    - `test`: Añadir o modificar pruebas automáticas.
-    - `chore`: Tareas de mantenimiento, dependencias o configuración del proyecto.
-    - **Aviso de cambio disruptivo**: Puede incluir un signo `!` antes de los dos puntos (ej. `feat!: ...` o `refactor(api)!: ...`) para señalar un **BREAKING CHANGE**.
 
-- **`scope`** *(opcional)*: Módulo o componente afectado, escrito entre paréntesis:
-    - Ejemplos: `(gui)`, `(modelo)`, `(datasets)`, `(cli)`.
+- **description**: en imperativo, sin punto final.
+- **scope** *(opcional)*: parte del código afectada, entre paréntesis (`gui`, `modelo`, `datasets`).
+- **body** *(opcional)*: explica el motivo del cambio; va separado por una línea en blanco.
+- **footer** *(opcional)*: referencias a incidencias o `BREAKING CHANGE`.
+- **`!`** tras el tipo o scope indica un `BREAKING CHANGE`.
 
-- **`description`**: Resumen breve, directo y en modo imperativo o presente, sin mayúscula inicial y sin punto final.
+| `feat` | Añade una nueva funcionalidad al proyecto |
+| `fix` | Corrige un error |
+| `docs` | Cambia solo la documentación o los comentarios |
+| `refactor` | Mejora la estructura interna del código sin cambiar su comportamiento |
+| `test` | Añade o modifica pruebas |
+| `chore` | Tareas de mantenimiento, como dependencias o configuración |
 
-- **`body`** *(opcional)*: Párrafo explicativo que detalla el motivo y contexto del cambio. Debe separarse de la descripción por una línea en blanco.
+## 5. Dependencias con `uv`
 
-- **`footer`** *(opcional)*: Metadatos finales, referencias a incidencias o notas de incompatibilidad (ej. `Closes #4` o `BREAKING CHANGE: se modifica la firma del método fit()`).
+| Añadir librería | `uv add <paquete>` |
+| Añadir dependencia de desarrollo | `uv add --dev <paquete>` |
+| Sincronizar el entorno | `uv sync` |
+| Ejecutar tests | `uv run pytest` |
 
-## 5. Gestión de dependencias con `uv`
+- No usar `pip install`.
+- `pyproject.toml` y `uv.lock` se commitean siempre juntos.
 
-- El entorno se administra exclusivamente mediante **`uv`**. No está permitido usar `pip install` ni alterar el entorno virtual a mano.
-- **Añadir librerías del proyecto**: `uv add <paquete>`
-- **Añadir dependencias de desarrollo/testing**: `uv add --dev <paquete>`
-- **Actualizar paquetes**: `uv lock --upgrade`
-- **Control en Git**: Los archivos `pyproject.toml` y `uv.lock` deben incluirse siempre en el commit al modificar dependencias.
-- **Sincronización del entorno**: Tras hacer `git pull` o cambiar de rama, ejecutar `uv sync` para alinear el entorno local.
+## 6. Documentación
 
-## 6. Procedimiento para modificar el README o la documentación
+| Al crear una función, clase o módulo | Docstring |
+| Al cambiar la instalación o el uso | `README.md` |
+| Al cambiar estas normas | `CONTRIBUTING.md` |
 
-1. Crear una rama con el prefijo `docs/` desde `dev` (ej. `docs/05-ampliacion-readme`).
-2. Editar los archivos Markdown (`README.md`, `CONTRIBUTING.md` o archivos en `docs/`).
-3. Verificar que los bloques de código cierren correctamente con triple tilde inversa y que no existan enlaces rotos.
-4. Realizar el commit con prefijo `docs:` (ej. `git commit -m "docs: actualizar instrucciones de arranque en README"`).
-5. Fusionar la rama en `dev` siguiendo el procedimiento habitual.
+Los cambios de documentación se hacen en una rama `docs/` y se commitean con `docs:`.
 
 ## 7. Pruebas automatizadas
 
@@ -115,9 +105,9 @@ Cada prueba que pasa aparece como `.` (`PASSED` con `-v`) y cada una que falla c
 - Cada prueba es una función cuyo nombre empieza por `test_` y comprueba el resultado con `assert`. Para comprobar que se lanza una excepción se usa `pytest.raises`.
 - El código se importa **por el nombre del paquete**, nunca modificando `sys.path` ni con rutas relativas:
 
-  ```python
+```python
   from aporel10.importacion import importar_datos
-  ```
+```
 
 ### 7.3. Datos de las pruebas
 
@@ -125,7 +115,7 @@ Cada prueba que pasa aparece como `.` (`PASSED` con `-v`) y cada una que falla c
 - Los datos se escriben en el propio código de la prueba: unas pocas filas con valores conocidos, incluidos los casos especiales que se quieran comprobar (valores inexistentes, columnas no numéricas...).
 - Si una prueba necesita un archivo, lo crea al ejecutarse en una carpeta temporal con el parámetro `tmp_path` de pytest, que se borra automáticamente:
 
-  ```python
+```python
   import pandas as pd
 
   from aporel10.importacion import importar_datos
@@ -138,11 +128,58 @@ Cada prueba que pasa aparece como `.` (`PASSED` con `-v`) y cada una que falla c
       datos = importar_datos(ruta)
 
       assert list(datos.columns) == ["x", "y"]
-  ```
+```
 
   (Es un ejemplo: el módulo `importacion` y pandas llegarán con la historia #10.)
 
 ### 7.4. Reglas de fusión según el resultado de las pruebas
 
-- Antes de fusionar una rama de trabajo (`feature`, `fix` o `docs`) en `dev`, se actualiza con los últimos cambios de `dev` (apartado 3, paso 3) y se ejecuta `uv run pytest`. **Solo se fusiona si todas las pruebas pasan.**
+- Antes de abrir la Pull Request de una rama de trabajo (`feature`, `fix` o `docs`) hacia `dev`, se actualiza con los últimos cambios de `dev` (sección 3, paso 2) y se ejecuta `uv run pytest`. **Solo se fusiona si todas las pruebas pasan.**
 - `dev` solo se fusiona en `main` si todas las pruebas pasan sobre `dev`.
+
+## 8. Estilo de código (PEP 8)
+
+- Indentación de 4 espacios, sin tabuladores.
+- 2 líneas en blanco entre funciones y clases; 1 entre métodos.
+- Espacios alrededor de operadores: `total = precio * unidades`.
+- Nombres significativos y comparaciones con `is None` / `is not None`.
+- Comentarios solo si aportan algo que el código no dice, en inglés.
+
+| Variables y funciones | `snake_case` | `calcular_media()` |
+| Clases | `CapWords` | `LinearModel` |
+| Constantes | `UPPER_CASE` | `MAX_SIZE` |
+
+**Herramienta**: extensión **autopep8** de VSCode.
+
+## 9. Refactorización
+
+Mejorar el código **sin cambiar su comportamiento**, con los tests en verde.
+
+- **Cuándo**: al encontrar código duplicado o confuso, antes de añadir una
+
+## 10. Revisión de cambios
+
+Antes de aprobar y fusionar una Pull Request en `dev`, quien la revisa comprueba:
+
+- [ ] Estilo PEP 8 aplicado con autopep8.
+- [ ] Nombres claros.
+- [ ] Sin código duplicado.
+- [ ] Mensajes de commit correctos.
+- [ ] Todas las pruebas pasan (`uv run pytest`).
+
+## 10. Releases
+
+Versionado `MAJOR.MINOR.PATCH` (SemVer):
+
+| `fix` | PATCH |
+| `feat` | MINOR |
+| `BREAKING CHANGE` | MAJOR |
+
+Antes de `v1.0.0` se revisa todo el código y se refactoriza en ramas desde `dev` con commits `refactor`. Después:
+
+```bash
+git switch main
+git merge --no-ff dev
+git tag v1.0.0
+git push origin main --tags
+```
