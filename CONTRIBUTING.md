@@ -22,7 +22,7 @@ Una rama por tarea, creada desde `dev`, en minúsculas y con guiones. El nombre 
 
 ## 3. Flujo de trabajo
 
-Los cambios se integran en `dev` mediante Pull Requests.
+Los cambios se integran en `dev`.
 
 ```bash
 # 1. Crear la rama desde dev actualizado
@@ -30,17 +30,20 @@ git switch dev
 git pull origin dev
 git switch -c feature/10-importacion-datos
 
-# 2. Actualizar la rama con dev (con frecuencia y antes de abrir la Pull Request)
+# 2. Actualizar la rama con dev (con frecuencia y antes de fusionar)
 git fetch origin
 git merge origin/dev
 
-# 3. Subir la rama
-git push -u origin feature/10-importacion-datos
+# 3. Integrar los cambios localmente
+git switch dev
+git merge feature/10-importacion-datos
+
+# 4. Subir dev actualizado al repositorio remoto
+git push origin dev
 ```
 
-4. Abrir en GitHub una Pull Request de la rama hacia `dev`.
-5. Otro miembro del equipo la revisa (sección 10) y, si está correcta, la fusiona (merge) en `dev`.
 6. La rama se conserva tras el merge.
+
 
 ## 4. Mensajes de commit (Conventional Commits)
 
@@ -155,7 +158,7 @@ Cada prueba que pasa aparece como `.` (`PASSED` con `-v`) y cada una que falla c
 
 Mejorar el código **sin cambiar su comportamiento**, con los tests en verde.
 
-- **Cuándo**: al encontrar código duplicado o confuso, antes de añadir una
+- **Cuándo**: al encontrar código duplicado o confuso.
 
 ## 10. Revisión de cambios
 
