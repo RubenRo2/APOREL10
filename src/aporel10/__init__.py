@@ -6,4 +6,8 @@ __version__ = version("aporel10")
 
 
 def main() -> None:
-    print("Hello from aporel10!")
+    # Se importa aquí dentro para que importar el paquete (por ejemplo, desde
+    # las pruebas) no cargue la interfaz gráfica.
+    from aporel10.gui import ejecutar
+
+    ejecutar()
