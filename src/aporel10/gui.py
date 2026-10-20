@@ -5,10 +5,11 @@ from pathlib import Path
 
 import pandas as pd
 from PySide6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel,
-                               QMainWindow, QPushButton, QTableWidget,
-                               QTableWidgetItem, QVBoxLayout, QWidget)
+                               QMainWindow, QMessageBox, QPushButton,
+                               QTableWidget, QTableWidgetItem, QVBoxLayout,
+                               QWidget)
 
-from aporel10.data_loader import cargar_datos
+from aporel10.data_loader import ErrorImportacionDatos, cargar_datos
 
 # Solo se muestran en el explorador los formatos que admite data_loader.
 FILTRO_DATOS = "Datos (*.csv *.xlsx *.xls *.sqlite *.db)"
@@ -52,8 +53,16 @@ class VentanaPrincipal(QMainWindow):
         self.cargar_archivo(ruta)
 
     def cargar_archivo(self, ruta: str) -> None:
-        """Lee el archivo con el módulo de importación y muestra sus datos."""
-        datos = cargar_datos(ruta)
+        """Lee el archivo con el módulo de importación y muestra sus datos.
+
+        Si el archivo no se puede leer, muestra el error y conserva los datos
+        que hubiera cargados antes.
+        """
+        try:
+            datos = cargar_datos(ruta)
+        except ErrorImportacionDatos as error:
+            QMessageBox.critical(self, "Error al cargar los datos", str(error))
+            return
         self.datos = datos
         self.ruta_datos = Path(ruta).resolve()
         self.etiqueta_ruta.setText(str(self.ruta_datos))
