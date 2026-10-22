@@ -60,6 +60,13 @@ def cargar_datos(file_path: str | Path) -> pd.DataFrame:
     try:
         if extension == ".csv":
             datos = pd.read_csv(path)
+            # Si alguna fila tiene más campos que la cabecera, pandas usa
+            # los sobrantes como índice en lugar de dar error.
+            if not isinstance(datos.index, pd.RangeIndex):
+                raise ErrorImportacionDatos(
+                    "El archivo está dañado o su contenido no corresponde "
+                    "a su extensión."
+                )
             
         elif extension in {".xlsx", ".xls"}:
             datos = pd.read_excel(path)
