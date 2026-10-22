@@ -34,11 +34,15 @@ git switch -c feature/10-importacion-datos
 git fetch origin
 git merge origin/dev
 
-# 3. Integrar los cambios localmente
+# 3. 
+git add .
+git commit -m "mensaje commit"
+
+# 4. Integrar los cambios localmente
 git switch dev
 git merge feature/10-importacion-datos
 
-# 4. Subir dev actualizado al repositorio remoto
+# 5. Subir dev actualizado al repositorio remoto
 git push origin dev
 ```
 
@@ -170,7 +174,7 @@ Antes de aprobar y fusionar una Pull Request en `dev`, quien la revisa comprueba
 - [ ] Mensajes de commit correctos.
 - [ ] Todas las pruebas pasan (`uv run pytest`).
 
-## 10. Releases
+## 11. Releases
 
 Versionado `MAJOR.MINOR.PATCH` (SemVer):
 
