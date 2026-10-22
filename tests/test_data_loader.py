@@ -133,3 +133,13 @@ def test_error_sqlite_multiples_tablas(tmp_path: Path):
 
     with pytest.raises(ErrorImportacionDatos, match="Solo se admite una única tabla"):
         cargar_datos(path)
+
+
+def test_error_csv_con_filas_con_mas_campos_que_la_cabecera(tmp_path: Path):
+    """Error: un texto no válido guardado como .csv no se carga como tabla."""
+    path = tmp_path / "texto.csv"
+    path.write_text("esto no es\nun csv, valido, ni, de, lejos\n", encoding="utf-8")
+
+    with pytest.raises(ErrorImportacionDatos, match="dañado o su contenido no corresponde"):
+        cargar_datos(path)
+        
