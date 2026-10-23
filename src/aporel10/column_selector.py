@@ -40,6 +40,6 @@ def validar_seleccion(df: pd.DataFrame, entradas: list[str], salida: str) -> Non
     # Comprueba si las columas son numéricas
     if columnas_no_numericas:
         raise ErrorSeleccionColumnas(
-            "Solo se admiten columnas numéricas para regresión lineal. "
+            "Solo se admiten columnas numéricas para regresión lineal/multiple. "
             f"Columnas inválidas: {', '.join(columnas_no_numericas)}"
         )
