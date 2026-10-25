@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel,
 
 from aporel10.data_loader import ErrorImportacionDatos, cargar_datos
 from aporel10.column_selector import ErrorSeleccionColumnas, validar_seleccion
+from aporel10.data_splitter import ErrorSeparacionDatos, separar_datos
 
 
 # Solo se muestran en el explorador los formatos que admite data_loader.
@@ -29,6 +30,18 @@ class VentanaPrincipal(QMainWindow):
         # (selección de columnas, separación, creación del modelo...).
         self.datos: pd.DataFrame | None = None
         self.ruta_datos: Path | None = None
+
+        # Confirmed column selection; None until "Validar variables" succeeds
+        self.entradas: list[str] | None = None
+        self.salida: str | None = None
+
+        # Result of "Separar datos"; None until the split is done
+        self.datos_entrenamiento: pd.DataFrame | None = None
+        self.datos_test: pd.DataFrame | None = None
+
+        # Later steps of the workflow, built from the current split
+        self.preprocesado = None
+        self.modelo = None
 
         self.boton_cargar = QPushButton("Cargar datos...")
         self.etiqueta_ruta = QLabel("Ningún archivo cargado")
@@ -125,6 +138,10 @@ class VentanaPrincipal(QMainWindow):
 
         self.boton_cargar.clicked.connect(self.elegir_archivo)
         self.boton_validar.clicked.connect(self.validar_variables)
+        self.boton_separar.clicked.connect(self.separar)
+        # Changing the selection means it has to be confirmed again
+        self.lista_entradas.itemSelectionChanged.connect(self.descartar_seleccion)
+        self.combo_salida.currentTextChanged.connect(self.descartar_seleccion)
         self.entrada_porcentaje.textChanged.connect(
             self.actualizar_porcentaje_entrenamiento)
 
@@ -161,6 +178,7 @@ class VentanaPrincipal(QMainWindow):
             self.limpiar_interfaz()
             QMessageBox.critical(self, "Error al cargar los datos", str(error))
             return
+        self.descartar_seleccion()
         self.datos = datos
         self.ruta_datos = Path(ruta).resolve()
         self.etiqueta_ruta.setText(str(self.ruta_datos))
@@ -189,7 +207,21 @@ class VentanaPrincipal(QMainWindow):
 
         self.entrada_porcentaje.setText("20")
         self.entrada_semilla.setText("42")
+        self.descartar_seleccion()
+
+    def descartar_seleccion(self) -> None:
+        """Anula la selección confirmada; hay que validarla y separar de nuevo."""
+        self.entradas = None
+        self.salida = None
         self.boton_separar.setEnabled(False)
+        self.invalidar_separacion()
+
+    def invalidar_separacion(self) -> None:
+        """Descarta la separación y todo lo que se haya creado a partir de ella."""
+        self.datos_entrenamiento = None
+        self.datos_test = None
+        self.preprocesado = None
+        self.modelo = None
         self.etiqueta_separacion.setText("Datos sin separar")
 
     def mostrar_tabla(self, datos: pd.DataFrame) -> None:
@@ -217,10 +249,53 @@ class VentanaPrincipal(QMainWindow):
         # 2. Enviar a tu función blindada con try/except
         try:
             validar_seleccion(self.datos, entradas_seleccionadas, salida_seleccionada)
-            QMessageBox.information(self, "Éxito", "Las variables seleccionadas son válidas y están listas para entrenar.")
         except ErrorSeleccionColumnas as error:
             # Si la lógica detecta un fallo, mostramos el mensaje exacto que programaste
+            self.descartar_seleccion()
             QMessageBox.warning(self, "Error de Selección", str(error))
+            return
+
+        # The split is only available after a confirmed selection
+        self.entradas = entradas_seleccionadas
+        self.salida = salida_seleccionada
+        self.boton_separar.setEnabled(True)
+        QMessageBox.information(self, "Éxito", "Las variables seleccionadas son válidas y están listas para entrenar.")
+
+    def separar(self) -> None:
+        """Separa los datos en entrenamiento y test con el porcentaje y la semilla indicados."""
+        # A new split always discards the previous one and what was built on it
+        self.invalidar_separacion()
+
+        try:
+            porcentaje_test = float(self.entrada_porcentaje.text().strip().replace(",", "."))
+        except ValueError:
+            QMessageBox.warning(self, "Error en el porcentaje",
+                                "El porcentaje de test debe ser un número entre 1 y 99.")
+            return
+
+        try:
+            semilla = int(self.entrada_semilla.text().strip())
+        except ValueError:
+            QMessageBox.warning(self, "Error en la semilla",
+                                "La semilla debe ser un número entero.")
+            return
+
+        # Range checks, minimum rows and empty sets are done by data_splitter
+        try:
+            entrenamiento, test = separar_datos(self.datos, porcentaje_test, semilla)
+        except ErrorSeparacionDatos as error:
+            QMessageBox.warning(self, "Error al separar los datos", str(error))
+            return
+
+        self.datos_entrenamiento = entrenamiento
+        self.datos_test = test
+        self.etiqueta_separacion.setText(
+            f"Entrenamiento: {len(entrenamiento)} filas | Test: {len(test)} filas")
+        QMessageBox.information(
+            self, "Separación realizada",
+            "Los datos se han separado correctamente.\n\n"
+            f"Entrenamiento: {len(entrenamiento)} filas\n"
+            f"Test: {len(test)} filas")
 
 
 def ejecutar() -> None:
