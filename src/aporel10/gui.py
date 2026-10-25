@@ -33,7 +33,7 @@ class VentanaPrincipal(QMainWindow):
         self.boton_cargar = QPushButton("Cargar datos...")
         self.etiqueta_ruta = QLabel("Ningún archivo cargado")
         self.tabla = QTableWidget()
-        
+
         self.lista_entradas = QListWidget()
         self.lista_entradas.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
         self.combo_salida = QComboBox()
@@ -49,12 +49,11 @@ class VentanaPrincipal(QMainWindow):
         self.boton_separar = QPushButton("Separar datos")
         self.boton_separar.setEnabled(False)
         self.etiqueta_separacion = QLabel("Datos sin separar")
-        
 
         fila_carga = QHBoxLayout()
         fila_carga.addWidget(self.boton_cargar)
         fila_carga.addWidget(self.etiqueta_ruta, stretch=1)
-        
+
         fila_variables = QHBoxLayout()
         #Añado stretch para que se vea bonito
         fila_variables.addWidget(QLabel("Entradas (Features):"), stretch=0)
@@ -74,15 +73,15 @@ class VentanaPrincipal(QMainWindow):
 
         contenido = QWidget()
         layout = QVBoxLayout(contenido)
-        
+
         #Añado stretch (ocupa el % de la pantalla que se le pasa) para ajustar como se ve porque me parecia muy grande
         layout.addLayout(fila_carga, stretch=0)
-        layout.addWidget(self.tabla, stretch=8) 
+        layout.addWidget(self.tabla, stretch=8)
         layout.addLayout(fila_variables, stretch=2)
         layout.addLayout(fila_separacion, stretch=0)
-        
+
         self.setCentralWidget(contenido)
-        
+
         self.setStyleSheet("""
             QPushButton {
                 padding: 6px 12px;
@@ -92,13 +91,13 @@ class VentanaPrincipal(QMainWindow):
             }
             QPushButton:hover {
                 background-color: #505050;
-                border: 1px solid #8ab4f8; 
-                color: #8ab4f8;   
+                border: 1px solid #8ab4f8;
+                color: #8ab4f8;
             }
             QPushButton:pressed {
                 background-color: #222222;
                 border: 1px solid #333;
-                color: #aaaaaa; 
+                color: #aaaaaa;
             }
             QPushButton:disabled {
                 color: #777777;
@@ -114,11 +113,11 @@ class VentanaPrincipal(QMainWindow):
             }
             QListWidget::item:selected {
                 background-color: #8ab4f8;
-                color: #111111;   
-                border-radius: 2px; 
+                color: #111111;
+                border-radius: 2px;
             }
             QListWidget::item {
-                padding: 4px 8px; 
+                padding: 4px 8px;
                 border: none;
                 margin: 0px;
             }
@@ -153,27 +152,45 @@ class VentanaPrincipal(QMainWindow):
     def cargar_archivo(self, ruta: str) -> None:
         """Lee el archivo con el módulo de importación y muestra sus datos.
 
-        Si el archivo no se puede leer, muestra el error y conserva los datos
-        que hubiera cargados antes.
+        Si el archivo no se puede leer, muestra el error y deja la interfaz
+        en blanco, sin los datos que hubiera cargados antes.
         """
         try:
             datos = cargar_datos(ruta)
         except ErrorImportacionDatos as error:
+            self.limpiar_interfaz()
             QMessageBox.critical(self, "Error al cargar los datos", str(error))
             return
         self.datos = datos
         self.ruta_datos = Path(ruta).resolve()
         self.etiqueta_ruta.setText(str(self.ruta_datos))
         self.mostrar_tabla(datos)
-        
+
         columnas = [str(col) for col in datos.columns]
         self.lista_entradas.clear()
         self.combo_salida.clear()
-        
+
         self.lista_entradas.addItems(columnas)
         self.combo_salida.addItems(columnas)
-        
-        
+
+    def limpiar_interfaz(self) -> None:
+        """Quita el dataset de la interfaz y la deja como al abrirla."""
+        self.datos = None
+        self.ruta_datos = None
+        self.etiqueta_ruta.setText("Ningún archivo cargado")
+
+        # clear() only empties the cells; the row and column counts remain
+        self.tabla.clear()
+        self.tabla.setRowCount(0)
+        self.tabla.setColumnCount(0)
+
+        self.lista_entradas.clear()
+        self.combo_salida.clear()
+
+        self.entrada_porcentaje.setText("20")
+        self.entrada_semilla.setText("42")
+        self.boton_separar.setEnabled(False)
+        self.etiqueta_separacion.setText("Datos sin separar")
 
     def mostrar_tabla(self, datos: pd.DataFrame) -> None:
         """Muestra todas las filas y columnas de los datos en la tabla."""
@@ -186,7 +203,6 @@ class VentanaPrincipal(QMainWindow):
             for columna, valor in enumerate(valores):
                 texto = "" if pd.isna(valor) else str(valor)
                 self.tabla.setItem(fila, columna, QTableWidgetItem(texto))
-
 
     def validar_variables(self) -> None:
         """Pasa la selección del usuario a la lógica de validación."""
@@ -206,13 +222,14 @@ class VentanaPrincipal(QMainWindow):
             # Si la lógica detecta un fallo, mostramos el mensaje exacto que programaste
             QMessageBox.warning(self, "Error de Selección", str(error))
 
+
 def ejecutar() -> None:
     """Abre la ventana principal y espera a que el usuario la cierre."""
     app = QApplication(sys.argv)
     ventana = VentanaPrincipal()
     ventana.show()
     sys.exit(app.exec())
-    
+
 
 if __name__ == "__main__":
     ejecutar()
