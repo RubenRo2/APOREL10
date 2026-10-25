@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 from PySide6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel,
-                               QMainWindow, QMessageBox, QPushButton,
+                               QLineEdit, QMainWindow, QMessageBox, QPushButton,
                                QTableWidget, QTableWidgetItem, QVBoxLayout,
                                QWidget, QListWidget, QComboBox)
 
@@ -38,6 +38,17 @@ class VentanaPrincipal(QMainWindow):
         self.lista_entradas.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
         self.combo_salida = QComboBox()
         self.boton_validar = QPushButton("Validar variables")
+
+        self.entrada_porcentaje = QLineEdit("20")
+        self.entrada_porcentaje.setPlaceholderText("1-99")
+        self.entrada_porcentaje.setMaximumWidth(60)
+        self.etiqueta_entrenamiento = QLabel("Entrenamiento: 80 %")
+        self.entrada_semilla = QLineEdit("42")
+        self.entrada_semilla.setPlaceholderText("Entero")
+        self.entrada_semilla.setMaximumWidth(80)
+        self.boton_separar = QPushButton("Separar datos")
+        self.boton_separar.setEnabled(False)
+        self.etiqueta_separacion = QLabel("Datos sin separar")
         
 
         fila_carga = QHBoxLayout()
@@ -52,6 +63,15 @@ class VentanaPrincipal(QMainWindow):
         fila_variables.addWidget(self.combo_salida, stretch=3)
         fila_variables.addWidget(self.boton_validar, stretch=0)
 
+        fila_separacion = QHBoxLayout()
+        fila_separacion.addWidget(QLabel("Test (%):"))
+        fila_separacion.addWidget(self.entrada_porcentaje)
+        fila_separacion.addWidget(self.etiqueta_entrenamiento)
+        fila_separacion.addWidget(QLabel("Semilla:"))
+        fila_separacion.addWidget(self.entrada_semilla)
+        fila_separacion.addWidget(self.boton_separar)
+        fila_separacion.addWidget(self.etiqueta_separacion, stretch=1)
+
         contenido = QWidget()
         layout = QVBoxLayout(contenido)
         
@@ -59,6 +79,7 @@ class VentanaPrincipal(QMainWindow):
         layout.addLayout(fila_carga, stretch=0)
         layout.addWidget(self.tabla, stretch=8) 
         layout.addLayout(fila_variables, stretch=2)
+        layout.addLayout(fila_separacion, stretch=0)
         
         self.setCentralWidget(contenido)
         
@@ -78,8 +99,12 @@ class VentanaPrincipal(QMainWindow):
                 background-color: #222222;
                 border: 1px solid #333;
                 color: #aaaaaa; 
-            }        
-            QListWidget, QComboBox {
+            }
+            QPushButton:disabled {
+                color: #777777;
+                border: 1px solid #444;
+            }
+            QListWidget, QComboBox, QLineEdit {
                 background-color: #2b2b2b;
                 color: white;
                 border: 1px solid #555;
@@ -101,6 +126,8 @@ class VentanaPrincipal(QMainWindow):
 
         self.boton_cargar.clicked.connect(self.elegir_archivo)
         self.boton_validar.clicked.connect(self.validar_variables)
+        self.entrada_porcentaje.textChanged.connect(
+            self.actualizar_porcentaje_entrenamiento)
 
     def elegir_archivo(self) -> None:
         """Abre el explorador de archivos para elegir un dataset."""
@@ -109,6 +136,19 @@ class VentanaPrincipal(QMainWindow):
         if not ruta:
             return  # el usuario cerró el explorador sin elegir nada
         self.cargar_archivo(ruta)
+
+    def actualizar_porcentaje_entrenamiento(self, texto: str) -> None:
+        """Muestra el porcentaje de entrenamiento como complementario del de test."""
+        try:
+            porcentaje_test = float(texto.replace(",", "."))
+        except ValueError:
+            self.etiqueta_entrenamiento.setText("Entrenamiento: -- %")
+            return
+        if not 1 <= porcentaje_test <= 99:
+            self.etiqueta_entrenamiento.setText("Entrenamiento: -- %")
+            return
+        self.etiqueta_entrenamiento.setText(
+            f"Entrenamiento: {100 - porcentaje_test:g} %")
 
     def cargar_archivo(self, ruta: str) -> None:
         """Lee el archivo con el módulo de importación y muestra sus datos.
