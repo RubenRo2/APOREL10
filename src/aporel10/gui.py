@@ -7,11 +7,17 @@ import pandas as pd
 from PySide6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel,
                                QLineEdit, QMainWindow, QMessageBox, QPushButton,
                                QTableWidget, QTableWidgetItem, QVBoxLayout,
-                               QWidget, QListWidget, QComboBox)
+                               QWidget, QListWidget, QComboBox, QGroupBox)
 
 from aporel10.data_loader import ErrorImportacionDatos, cargar_datos
 from aporel10.column_selector import ErrorSeleccionColumnas, validar_seleccion
 from aporel10.data_splitter import ErrorSeparacionDatos, separar_datos
+from aporel10.missing_values import (
+    ErrorPreprocesado,
+    aplicar_preprocesado,
+    detectar_valores_inexistentes,
+    normalizar_columnas,
+)
 
 
 # Solo se muestran en el explorador los formatos que admite data_loader.
@@ -63,6 +69,60 @@ class VentanaPrincipal(QMainWindow):
         self.boton_separar.setEnabled(False)
         self.etiqueta_separacion = QLabel("Datos sin separar")
 
+        # Controles del preprocesado
+        self.grupo_preprocesado = QGroupBox("Valores inexistentes y preprocesado")
+        self.grupo_preprocesado.setEnabled(False)
+        layout_preprocesado = QVBoxLayout(self.grupo_preprocesado)
+
+        # Información sobre valores inexistentes
+        self.etiqueta_faltantes = QLabel(
+            "Separa los datos para analizar los valores inexistentes."
+        )
+
+        self.tabla_faltantes = QTableWidget(0, 3)
+        self.tabla_faltantes.setHorizontalHeaderLabels(
+            ["Columna", "Entrenamiento", "Test"]
+        )
+        self.tabla_faltantes.setMaximumHeight(145)
+
+        layout_preprocesado.addWidget(self.etiqueta_faltantes)
+        layout_preprocesado.addWidget(self.tabla_faltantes)
+
+        # Selección de estrategia
+        fila_tratamiento = QHBoxLayout()
+        fila_tratamiento.addWidget(QLabel("Tratamiento:"))
+
+        self.combo_estrategia = QComboBox()
+        self.combo_estrategia.addItem("Eliminar filas", "eliminar")
+        self.combo_estrategia.addItem("Rellenar con media", "media")
+        self.combo_estrategia.addItem("Rellenar con mediana", "mediana")
+        self.combo_estrategia.addItem("Rellenar con constante", "constante")
+        fila_tratamiento.addWidget(self.combo_estrategia)
+
+        # Campo para el valor constante
+        self.entrada_constante = QLineEdit()
+        self.entrada_constante.setPlaceholderText("Valor numérico")
+        self.entrada_constante.setMaximumWidth(135)
+        self.entrada_constante.setEnabled(False)
+        fila_tratamiento.addWidget(self.entrada_constante)
+
+        # Botón para aplicar el preprocesado
+        self.boton_aplicar = QPushButton("Aplicar preprocesado")
+        self.boton_aplicar.setEnabled(False)
+        fila_tratamiento.addWidget(self.boton_aplicar)
+        fila_tratamiento.addStretch()
+
+        layout_preprocesado.addLayout(fila_tratamiento)
+
+        # Información sobre el resultado
+        self.etiqueta_estado_preprocesado = QLabel("Preprocesado pendiente")
+        self.etiqueta_disponibilidad_modelo = QLabel(
+            "Creación del modelo: no disponible"
+        )
+
+        layout_preprocesado.addWidget(self.etiqueta_estado_preprocesado)
+        layout_preprocesado.addWidget(self.etiqueta_disponibilidad_modelo)
+
         fila_carga = QHBoxLayout()
         fila_carga.addWidget(self.boton_cargar)
         fila_carga.addWidget(self.etiqueta_ruta, stretch=1)
@@ -92,6 +152,7 @@ class VentanaPrincipal(QMainWindow):
         layout.addWidget(self.tabla, stretch=8)
         layout.addLayout(fila_variables, stretch=2)
         layout.addLayout(fila_separacion, stretch=0)
+        layout.addWidget(self.grupo_preprocesado, stretch=0)
 
         self.setCentralWidget(contenido)
 
@@ -139,6 +200,11 @@ class VentanaPrincipal(QMainWindow):
         self.boton_cargar.clicked.connect(self.elegir_archivo)
         self.boton_validar.clicked.connect(self.validar_variables)
         self.boton_separar.clicked.connect(self.separar)
+
+        #Preprocesado
+        self.boton_aplicar.clicked.connect(self.aplicar_preprocesado_gui)
+        self.combo_estrategia.currentIndexChanged.connect(self.actualizar_opcion_constante)
+
         # Changing the selection means it has to be confirmed again
         self.lista_entradas.itemSelectionChanged.connect(self.descartar_seleccion)
         self.combo_salida.currentTextChanged.connect(self.descartar_seleccion)
@@ -220,9 +286,19 @@ class VentanaPrincipal(QMainWindow):
         """Descarta la separación y todo lo que se haya creado a partir de ella."""
         self.datos_entrenamiento = None
         self.datos_test = None
-        self.preprocesado = None
+        self.preprocesado: str | None = None
         self.modelo = None
+        self.datos_listos_para_modelo = False #Indica si las columnas estan libres de nulos
+        
         self.etiqueta_separacion.setText("Datos sin separar")
+        self.grupo_preprocesado.setEnabled(False)
+        self.tabla_faltantes.setRowCount(0)
+
+        self.etiqueta_faltantes.setText("Separa los datos para analizar los valores inexistentes.")
+        self.etiqueta_estado_preprocesado.setText("Preprocesado pendiente")
+        self.etiqueta_disponibilidad_modelo.setText("Creación del modelo: no disponible")
+        self.boton_aplicar.setEnabled(False)
+
 
     def mostrar_tabla(self, datos: pd.DataFrame) -> None:
         """Muestra todas las filas y columnas de los datos en la tabla."""
@@ -287,8 +363,22 @@ class VentanaPrincipal(QMainWindow):
             QMessageBox.warning(self, "Error al separar los datos", str(error))
             return
 
+        # Normalizar las columnas seleccionadas sin modificar los datos originales
+        columnas = self.entradas + [self.salida]
+
+        try:
+            entrenamiento = normalizar_columnas(entrenamiento, columnas)
+            test = normalizar_columnas(test, columnas)
+        except ErrorPreprocesado as error:
+            QMessageBox.warning(self, "Error al analizar los datos", str(error))
+            return
+
         self.datos_entrenamiento = entrenamiento
         self.datos_test = test
+
+        # Detectar los valores inexistentes tras la separación
+        self.actualizar_deteccion()
+
         self.etiqueta_separacion.setText(
             f"Entrenamiento: {len(entrenamiento)} filas | Test: {len(test)} filas")
         QMessageBox.information(
@@ -296,6 +386,136 @@ class VentanaPrincipal(QMainWindow):
             "Los datos se han separado correctamente.\n\n"
             f"Entrenamiento: {len(entrenamiento)} filas\n"
             f"Test: {len(test)} filas")
+
+    def actualizar_opcion_constante(self, _indice: int) -> None:
+        """Habilita el campo constante solo para su estrategia."""
+        self.entrada_constante.setEnabled(self.combo_estrategia.currentData() == "constante")
+
+
+    def actualizar_deteccion(self) -> None:
+        """Muestra los nulos de cada columna y actualiza el estado del modelo."""
+        if self.datos_entrenamiento is None or self.datos_test is None:
+            return
+
+        columnas = self.entradas + [self.salida]
+
+        conteo_entrenamiento = detectar_valores_inexistentes(
+            self.datos_entrenamiento, columnas
+        )
+        conteo_test = detectar_valores_inexistentes(
+            self.datos_test, columnas
+        )
+
+        self.tabla_faltantes.setRowCount(len(columnas))
+
+        for fila, columna in enumerate(columnas):
+            for indice, texto in enumerate((
+                columna,
+                str(conteo_entrenamiento[columna]),
+                str(conteo_test[columna]),
+            )):
+                self.tabla_faltantes.setItem(
+                    fila, indice, QTableWidgetItem(texto)
+                )
+
+        total_entrenamiento = sum(conteo_entrenamiento.values())
+        total_test = sum(conteo_test.values())
+
+        self.grupo_preprocesado.setEnabled(True)
+        self.datos_listos_para_modelo = (
+            total_entrenamiento + total_test == 0
+        )
+        self.boton_aplicar.setEnabled(
+            not self.datos_listos_para_modelo
+        )
+
+        if self.datos_listos_para_modelo:
+            self.etiqueta_faltantes.setText(
+                "No hay valores inexistentes en las columnas seleccionadas. "
+                "Puedes continuar sin preprocesar."
+            )
+            self.etiqueta_estado_preprocesado.setText(
+                "No quedan valores inexistentes."
+            )
+            self.etiqueta_disponibilidad_modelo.setText(
+                "Creación del modelo: disponible"
+            )
+        else:
+            self.etiqueta_faltantes.setText(
+                f"Valores inexistentes: {total_entrenamiento} en entrenamiento "
+                f"y {total_test} en test."
+            )
+            self.etiqueta_estado_preprocesado.setText(
+                "Elige una estrategia y pulsa Aplicar preprocesado."
+            )
+            self.etiqueta_disponibilidad_modelo.setText(
+                "Creación del modelo: no disponible hasta tratar los nulos"
+            )
+
+
+    def aplicar_preprocesado_gui(self) -> None:
+        """Aplica la estrategia elegida y comunica el resultado de ambos conjuntos."""
+        if self.datos_entrenamiento is None or self.datos_test is None:
+            return
+    
+        estrategia = self.combo_estrategia.currentData()
+        valor_constante = (
+            self.entrada_constante.text()
+            if estrategia == "constante" else None
+        )
+    
+        try:
+            (
+                entrenamiento_limpio,
+                test_limpio,
+                afectados_entrenamiento,
+                afectados_test,
+            ) = aplicar_preprocesado(
+                self.datos_entrenamiento,
+                self.datos_test,
+                self.entradas + [self.salida],
+                estrategia,
+                valor_constante,
+            )
+    
+        except ErrorPreprocesado as error:
+            QMessageBox.warning(
+                self, "Error de preprocesado", str(error)
+            )
+            return
+    
+        # Actualizar los datos solo después de completar el tratamiento
+        self.datos_entrenamiento = entrenamiento_limpio
+        self.datos_test = test_limpio
+        self.preprocesado = estrategia
+        self.modelo = None
+    
+        self.etiqueta_separacion.setText(
+            f"Entrenamiento: {len(entrenamiento_limpio)} filas | "
+            f"Test: {len(test_limpio)} filas"
+        )
+    
+        self.actualizar_deteccion()
+    
+        unidad = (
+            "filas eliminadas"
+            if estrategia == "eliminar"
+            else "valores rellenados"
+        )
+    
+        mensaje = (
+            f"Entrenamiento: {afectados_entrenamiento} {unidad}.\n"
+            f"Test: {afectados_test} {unidad}."
+        )
+    
+        self.etiqueta_estado_preprocesado.setText(
+            "Preprocesado aplicado correctamente. "
+            + mensaje.replace("\n", " | ")
+        )
+    
+        QMessageBox.information(
+            self, "Preprocesado aplicado", mensaje
+        )
 
 
 def ejecutar() -> None:
