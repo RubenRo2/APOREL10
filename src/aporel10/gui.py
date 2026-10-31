@@ -7,7 +7,9 @@ import pandas as pd
 from PySide6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel,
                                QLineEdit, QMainWindow, QMessageBox, QPushButton,
                                QTableWidget, QTableWidgetItem, QVBoxLayout,
-                               QWidget, QListWidget, QComboBox, QGroupBox)
+                               QWidget, QListWidget, QComboBox, QGroupBox, QSizePolicy,
+                               QAbstractItemView)
+from PySide6.QtCore import Qt
 
 from aporel10.data_loader import ErrorImportacionDatos, cargar_datos
 from aporel10.column_selector import ErrorSeleccionColumnas, validar_seleccion
@@ -22,91 +24,180 @@ from aporel10.missing_values import (
 
 # Solo se muestran en el explorador los formatos que admite data_loader.
 FILTRO_DATOS = "Datos (*.csv *.xlsx *.xls *.sqlite *.db)"
+VELOCIDAD_SCROLL = 5 # Píxeles de avance por cada clic de la rueda del ratón
 
 
 class VentanaPrincipal(QMainWindow):
     """Ventana principal de la aplicación."""
 
     def __init__(self):
+        
         super().__init__()
         self.setWindowTitle("APOREL10 - Regresión lineal")
-        self.resize(1000, 600)
+        self.resize(1000, 700)
 
-        # Datos cargados. Los usarán los pasos siguientes del programa
-        # (selección de columnas, separación, creación del modelo...).
+        # 1. Inicialización del estado interno
+        self._inicializar_estado()
+        
+        # 2. Creación y ensamblaje de la interfaz
+        self._crear_interfaz()
+        
+        # 3. Conexión de eventos y señales
+        self._conectar_señales()
+        
+        # 4. Aplicación de estilos visuales
+        self._aplicar_estilos()   
+        
+        
+    def _inicializar_estado(self) -> None:
+        """Define las variables de estado que usará la aplicación."""
         self.datos: pd.DataFrame | None = None
         self.ruta_datos: Path | None = None
 
-        # Confirmed column selection; None until "Validar variables" succeeds
         self.entradas: list[str] | None = None
         self.salida: str | None = None
 
-        # Result of "Separar datos"; None until the split is done
         self.datos_entrenamiento: pd.DataFrame | None = None
         self.datos_test: pd.DataFrame | None = None
 
-        # Later steps of the workflow, built from the current split
         self.preprocesado = None
         self.modelo = None
-
+        self.datos_listos_para_modelo = False
+    
+    
+    def _crear_interfaz(self) -> None:
+        """Crea todos los widgets y los organiza en layouts modulares."""
+        
+        # 1º Carga de datos
         self.boton_cargar = QPushButton("Cargar datos...")
         self.etiqueta_ruta = QLabel("Ningún archivo cargado")
         self.tabla = QTableWidget()
-
+        
+        self.tabla.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.tabla.setMinimumHeight(200)
+        
+        fila_carga = QHBoxLayout()
+        fila_carga.addWidget(self.boton_cargar)
+        fila_carga.addWidget(self.etiqueta_ruta, stretch=1)
+        
+        # 2º Selección de variables
+        grupo_variables = QGroupBox("Selección de Variables")
+        grupo_variables.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
+        layout_variables = QHBoxLayout(grupo_variables)
+        
         self.lista_entradas = QListWidget()
         self.lista_entradas.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
+        self.lista_entradas.setMaximumHeight(70)
+        self.lista_entradas.setMinimumHeight(70) 
+        self.lista_entradas.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.lista_entradas.verticalScrollBar().setSingleStep(VELOCIDAD_SCROLL)
+        
         self.combo_salida = QComboBox()
+        self.combo_salida.view().setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.combo_salida.view().verticalScrollBar().setSingleStep(VELOCIDAD_SCROLL)
+        
         self.boton_validar = QPushButton("Validar variables")
+        self.boton_validar.setFixedWidth(270)
+        
+        self.combo_salida.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.combo_salida.setMinimumWidth(250)
+        
+        layout_derecha = QVBoxLayout()
+        
+        fila_salida = QHBoxLayout()
+        fila_salida.addWidget(QLabel("Salida (Target):"))
+        fila_salida.addWidget(self.combo_salida)
+        
+        layout_derecha.addLayout(fila_salida)
+        layout_derecha.addWidget(self.boton_validar, 0, Qt.AlignmentFlag.AlignRight)
+        layout_derecha.addStretch() # Evita que se expandan hacia abajo
 
+        layout_variables.addWidget(QLabel("Entradas (Features):"))
+        layout_variables.addWidget(self.lista_entradas, stretch=3)
+        layout_variables.addLayout(layout_derecha, stretch=2)
+        
+        # 3º Separación de datos
+        grupo_separacion = QGroupBox("Separación de Datos (Train/Test)")
+        grupo_separacion.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
+        layout_separacion = QHBoxLayout(grupo_separacion)
+        
         self.entrada_porcentaje = QLineEdit("20")
         self.entrada_porcentaje.setPlaceholderText("1-99")
         self.entrada_porcentaje.setMaximumWidth(60)
         self.etiqueta_entrenamiento = QLabel("Entrenamiento: 80 %")
+        
         self.entrada_semilla = QLineEdit("42")
         self.entrada_semilla.setPlaceholderText("Entero")
         self.entrada_semilla.setMaximumWidth(80)
+        
         self.boton_separar = QPushButton("Separar datos")
         self.boton_separar.setEnabled(False)
         self.etiqueta_separacion = QLabel("Datos sin separar")
 
-        # Controles del preprocesado
+        layout_separacion.addWidget(QLabel("Test (%):"))
+        layout_separacion.addWidget(self.entrada_porcentaje)
+        layout_separacion.addWidget(self.etiqueta_entrenamiento)
+        layout_separacion.addWidget(QLabel("Semilla:"))
+        layout_separacion.addWidget(self.entrada_semilla)
+        layout_separacion.addWidget(self.boton_separar)
+        layout_separacion.addWidget(self.etiqueta_separacion, stretch=1)
+        
+        # 4º Preprocesado
+        self._crear_panel_preprocesado()
+        
+        # 5º Ensamblaje final 
+        contenido = QWidget()
+        layout_principal = QVBoxLayout(contenido)
+        layout_principal.setContentsMargins(20, 20, 20, 20)
+        layout_principal.setSpacing(15)
+        
+        layout_principal.addLayout(fila_carga)
+        layout_principal.addWidget(self.tabla, stretch=10)   
+        layout_principal.addWidget(grupo_variables, stretch=0)   
+        layout_principal.addWidget(grupo_separacion, stretch=0)   
+        layout_principal.addWidget(self.grupo_preprocesado, stretch=0)
+
+        self.setCentralWidget(contenido)
+
+   
+    def _crear_panel_preprocesado(self) -> None:
+        """Construye específicamente el grupo de preprocesado de datos."""
         self.grupo_preprocesado = QGroupBox("Valores inexistentes y preprocesado")
+        self.grupo_preprocesado.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
         self.grupo_preprocesado.setEnabled(False)
         layout_preprocesado = QVBoxLayout(self.grupo_preprocesado)
 
-        # Información sobre valores inexistentes
-        self.etiqueta_faltantes = QLabel(
-            "Separa los datos para analizar los valores inexistentes."
-        )
-
+        self.etiqueta_faltantes = QLabel("Separa los datos para analizar los valores inexistentes.")
         self.tabla_faltantes = QTableWidget(0, 3)
-        self.tabla_faltantes.setHorizontalHeaderLabels(
-            ["Columna", "Entrenamiento", "Test"]
-        )
-        self.tabla_faltantes.setMaximumHeight(145)
+        self.tabla_faltantes.setHorizontalHeaderLabels(["Columna", "Entrenamiento", "Test"])
+        
+        self.tabla_faltantes.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+        self.tabla_faltantes.setMaximumHeight(100)
 
         layout_preprocesado.addWidget(self.etiqueta_faltantes)
         layout_preprocesado.addWidget(self.tabla_faltantes)
+        self.tabla_faltantes.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.tabla_faltantes.verticalScrollBar().setSingleStep(VELOCIDAD_SCROLL)
 
-        # Selección de estrategia
         fila_tratamiento = QHBoxLayout()
         fila_tratamiento.addWidget(QLabel("Tratamiento:"))
 
         self.combo_estrategia = QComboBox()
+        self.combo_estrategia.view().setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.combo_estrategia.view().verticalScrollBar().setSingleStep(VELOCIDAD_SCROLL)
+        
         self.combo_estrategia.addItem("Eliminar filas", "eliminar")
         self.combo_estrategia.addItem("Rellenar con media", "media")
         self.combo_estrategia.addItem("Rellenar con mediana", "mediana")
         self.combo_estrategia.addItem("Rellenar con constante", "constante")
         fila_tratamiento.addWidget(self.combo_estrategia)
 
-        # Campo para el valor constante
         self.entrada_constante = QLineEdit()
         self.entrada_constante.setPlaceholderText("Valor numérico")
         self.entrada_constante.setMaximumWidth(135)
         self.entrada_constante.setEnabled(False)
         fila_tratamiento.addWidget(self.entrada_constante)
 
-        # Botón para aplicar el preprocesado
         self.boton_aplicar = QPushButton("Aplicar preprocesado")
         self.boton_aplicar.setEnabled(False)
         fila_tratamiento.addWidget(self.boton_aplicar)
@@ -114,103 +205,89 @@ class VentanaPrincipal(QMainWindow):
 
         layout_preprocesado.addLayout(fila_tratamiento)
 
-        # Información sobre el resultado
         self.etiqueta_estado_preprocesado = QLabel("Preprocesado pendiente")
-        self.etiqueta_disponibilidad_modelo = QLabel(
-            "Creación del modelo: no disponible"
-        )
+        self.etiqueta_disponibilidad_modelo = QLabel("Creación del modelo: no disponible")
 
         layout_preprocesado.addWidget(self.etiqueta_estado_preprocesado)
-        layout_preprocesado.addWidget(self.etiqueta_disponibilidad_modelo)
-
-        fila_carga = QHBoxLayout()
-        fila_carga.addWidget(self.boton_cargar)
-        fila_carga.addWidget(self.etiqueta_ruta, stretch=1)
-
-        fila_variables = QHBoxLayout()
-        #Añado stretch para que se vea bonito
-        fila_variables.addWidget(QLabel("Entradas (Features):"), stretch=0)
-        fila_variables.addWidget(self.lista_entradas, stretch=2)
-        fila_variables.addWidget(QLabel("Salida (Target):"), stretch=0)
-        fila_variables.addWidget(self.combo_salida, stretch=3)
-        fila_variables.addWidget(self.boton_validar, stretch=0)
-
-        fila_separacion = QHBoxLayout()
-        fila_separacion.addWidget(QLabel("Test (%):"))
-        fila_separacion.addWidget(self.entrada_porcentaje)
-        fila_separacion.addWidget(self.etiqueta_entrenamiento)
-        fila_separacion.addWidget(QLabel("Semilla:"))
-        fila_separacion.addWidget(self.entrada_semilla)
-        fila_separacion.addWidget(self.boton_separar)
-        fila_separacion.addWidget(self.etiqueta_separacion, stretch=1)
-
-        contenido = QWidget()
-        layout = QVBoxLayout(contenido)
-
-        #Añado stretch (ocupa el % de la pantalla que se le pasa) para ajustar como se ve porque me parecia muy grande
-        layout.addLayout(fila_carga, stretch=0)
-        layout.addWidget(self.tabla, stretch=8)
-        layout.addLayout(fila_variables, stretch=2)
-        layout.addLayout(fila_separacion, stretch=0)
-        layout.addWidget(self.grupo_preprocesado, stretch=0)
-
-        self.setCentralWidget(contenido)
-
-        self.setStyleSheet("""
-            QPushButton {
-                padding: 6px 12px;
-                border-radius: 4px;
-                background-color: #3b3b3b;
-                border: 1px solid #555;
-            }
-            QPushButton:hover {
-                background-color: #505050;
-                border: 1px solid #8ab4f8;
-                color: #8ab4f8;
-            }
-            QPushButton:pressed {
-                background-color: #222222;
-                border: 1px solid #333;
-                color: #aaaaaa;
-            }
-            QPushButton:disabled {
-                color: #777777;
-                border: 1px solid #444;
-            }
-            QListWidget, QComboBox, QLineEdit {
-                background-color: #2b2b2b;
-                color: white;
-                border: 1px solid #555;
-                border-radius: 4px;
-                font-size: 11px;
-                outline: none;
-            }
-            QListWidget::item:selected {
-                background-color: #8ab4f8;
-                color: #111111;
-                border-radius: 2px;
-            }
-            QListWidget::item {
-                padding: 4px 8px;
-                border: none;
-                margin: 0px;
-            }
-                """)
-
+        layout_preprocesado.addWidget(self.etiqueta_disponibilidad_modelo)    
+    
+     
+    def _conectar_señales(self) -> None:
+        """Agrupa todas las conexiones de botones y eventos de texto."""
         self.boton_cargar.clicked.connect(self.elegir_archivo)
         self.boton_validar.clicked.connect(self.validar_variables)
         self.boton_separar.clicked.connect(self.separar)
-
-        #Preprocesado
         self.boton_aplicar.clicked.connect(self.aplicar_preprocesado_gui)
+        
         self.combo_estrategia.currentIndexChanged.connect(self.actualizar_opcion_constante)
-
-        # Changing the selection means it has to be confirmed again
         self.lista_entradas.itemSelectionChanged.connect(self.descartar_seleccion)
         self.combo_salida.currentTextChanged.connect(self.descartar_seleccion)
-        self.entrada_porcentaje.textChanged.connect(
-            self.actualizar_porcentaje_entrenamiento)
-
+        self.entrada_porcentaje.textChanged.connect(self.actualizar_porcentaje_entrenamiento)
+        
+    
+    def _aplicar_estilos(self) -> None:
+        """Aplica las reglas QSS a la ventana, incluyendo los paneles."""
+        self.setStyleSheet("""
+            QWidget { background-color: #1e1e1e; color: #e0e0e0;}
+            QTableWidget { background-color: #252525; color: white;gridline-color: #444; border: 1px solid #555;}
+            QHeaderView::section { background-color: #3b3b3b; color: #8ab4f8; border: 1px solid #555; padding: 4px; font-weight: bold;}
+            
+            QPushButton { padding: 6px 12px; border-radius: 4px; background-color: #3b3b3b; border: 1px solid #555; }
+            QPushButton:hover { background-color: #505050; border: 1px solid #8ab4f8; color: #8ab4f8; }
+            QPushButton:pressed { background-color: #222222; border: 1px solid #333; color: #aaaaaa;}
+            QPushButton:disabled { color: #777777; border: 1px solid #444; }
+            
+            QListWidget, QComboBox, QLineEdit { background-color: #2b2b2b; color: white; border: 1px solid #555; border-radius: 4px; font-size: 11px; outline: none; }
+            QListWidget::item:selected { background-color: #8ab4f8; color: #111111; border-radius: 2px; }
+            QListWidget::item { padding: 1px 9px; height: 18px; border: none; margin: 0px;}
+            
+            QComboBox QAbstractItemView {
+                background-color: #2b2b2b;
+                border: 1px solid #555;
+                outline: none;
+            }
+            
+            QComboBox QAbstractItemView::item {
+                padding: 2px 6px; 
+                min-height: 20px;
+            }
+            
+            QComboBox QAbstractItemView::item:selected {
+                background-color: #8ab4f8;
+                color: #111111;
+            }
+            
+            QGroupBox {
+                border: 1px solid #555;
+                border-radius: 6px;
+                margin-top: 12px;
+                padding-top: 10px;
+                font-weight: bold;
+                color: #8ab4f8;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 0 5px;
+                left: 10px;
+            }
+            
+            /* --- NUEVO: Estilo moderno para las barras de desplazamiento --- */
+            QScrollBar:vertical { border: none; background-color: #1e1e1e; width: 8px; margin: 0px;}
+            QScrollBar::handle:vertical { background-color: #555555; min-height: 20px; border-radius: 5px; margin: 2px;}
+            QScrollBar::handle:vertical:hover {background-color: #8ab4f8;}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px;}
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none;}
+            
+            QScrollBar:horizontal { border: none; background-color: #1e1e1e; height: 8px; margin: 0px;}
+            QScrollBar::handle:horizontal { background-color: #555555; min-width: 20px; border-radius: 5px; margin: 2px;}
+            QScrollBar::handle:horizontal:hover { background-color: #8ab4f8;}
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0px;}
+            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: none;}
+            
+        """)
+        
+    # ------------------------------------------------------------LÓGICA DE EVENTOS------------------------------------------------------------
     def elegir_archivo(self) -> None:
         """Abre el explorador de archivos para elegir un dataset."""
         ruta, _ = QFileDialog.getOpenFileName(
@@ -522,9 +599,5 @@ def ejecutar() -> None:
     """Abre la ventana principal y espera a que el usuario la cierre."""
     app = QApplication(sys.argv)
     ventana = VentanaPrincipal()
-    ventana.show()
+    ventana.showMaximized()
     sys.exit(app.exec())
-
-
-if __name__ == "__main__":
-    ejecutar()
