@@ -1,0 +1,8 @@
+# Entorno virtual
+.venv/
+
+# Ficheros generados por Python
+__pycache__/
+
+# Datos locales: datasets y modelos guardados (no se suben al repositorio)
+data/

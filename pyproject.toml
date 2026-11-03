@@ -1,0 +1,30 @@
+[project]
+name = "aporel10"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "RubenRo2", email = "ruben.rodriguez.catrufo@udc.es" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "openpyxl>=3.1.5",
+    "pandas>=3.0.6",
+    "pyside6>=6.12.0",
+    "xlrd>=2.0.2",
+]
+
+[project.scripts]
+aporel10 = "aporel10:main"
+
+[build-system]
+requires = ["uv_build>=0.12.23,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
