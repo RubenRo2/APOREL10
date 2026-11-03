@@ -73,7 +73,7 @@ def test_normalizacion_con_numeros_en_texto_y_espacios():
     assert pd.isna(normalizado["x"].iloc[2])
     assert normalizado["x"].iloc[3] == 3.0
     pd.testing.assert_frame_equal(datos, original)
-    validar_seleccion(datos, ["x"], "y")
+    validar_seleccion(normalizado, ["x"], "y")
 
 
 def test_eliminar_filas_con_nulos_solo_en_columnas_elegidas(conjuntos):
