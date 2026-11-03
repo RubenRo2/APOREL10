@@ -176,17 +176,117 @@ Antes de aprobar y fusionar una Pull Request en `dev`, quien la revisa comprueba
 
 ## 11. Releases
 
-Versionado `MAJOR.MINOR.PATCH` (SemVer):
+### 11.1. Versionado
 
-| `fix` | PATCH |
-| `feat` | MINOR |
-| `BREAKING CHANGE` | MAJOR |
+Seguimos el versionado semántico (SemVer), `MAJOR.MINOR.PATCH`:
 
-Antes de `v1.0.0` se revisa todo el código y se refactoriza en ramas desde `dev` con commits `refactor`. Después:
+| Tipo de commit | Versión que sube |
+|----------------|------------------|
+| `fix` | PATCH (`0.1.0` → `0.1.1`) |
+| `feat` | MINOR (`0.1.0` → `0.2.0`) |
+| `BREAKING CHANGE` | MAJOR (`1.0.0` → `2.0.0`) |
+
+Las versiones `0.x.y` indican que la aplicación está en desarrollo; `1.0.0` es la primera versión completa y estable. Antes de `v1.0.0` se revisa todo el código y se refactoriza en ramas desde `dev` con commits `refactor`.
+
+### 11.2. Procedimiento de release
+
+Sustituye `X.Y.Z` por el número de la versión (por ejemplo, `0.1.0`).
+
+**1. Requisitos previos**
+
+- Todas las historias previstas para la versión están terminadas y fusionadas en `dev`.
+- Las pruebas pasan sobre `dev`:
+
+  ```bash
+  git switch dev
+  git pull origin dev
+  uv sync
+  uv run pytest
+  ```
+
+- Un miembro del equipo que no haya implementado esas historias prueba a mano la aplicación sobre `dev` con un dataset de ejemplo de su carpeta `data/`. Los errores encontrados se corrigen en ramas `fix/` antes de continuar.
+- El `README.md` describe las funcionalidades de la versión.
+
+**2. Actualizar el número de versión**
+
+Si el campo `version` de `pyproject.toml` no es ya `X.Y.Z`, se cambia en una rama de trabajo desde `dev` (`uv version` actualiza también `uv.lock`):
+
+```bash
+git switch -c feature/<id>-version-X.Y.Z
+uv version X.Y.Z
+uv run pytest
+git add pyproject.toml uv.lock
+git commit -m "chore: actualiza la versión a X.Y.Z"
+```
+
+y se integra en `dev` siguiendo la sección 3.
+
+**3. Fusionar `dev` en `main`**
 
 ```bash
 git switch main
-git merge --no-ff dev
-git tag v1.0.0
-git push origin main --tags
+git pull origin main
+git merge --no-ff dev -m "Merge branch 'dev' into main: versión X.Y.Z"
+uv run pytest
+git push origin main
 ```
+
+Después de la fusión, `main` y `dev` tienen el mismo código y el desarrollo continúa en ramas creadas desde `dev`.
+
+**4. Crear y subir la etiqueta**
+
+```bash
+git tag -a vX.Y.Z -m "Versión X.Y.Z"
+git push origin vX.Y.Z
+```
+
+La etiqueta es *anotada* (`-a`): guarda quién la creó, cuándo y un mensaje.
+
+**5. Crear la release en GitHub**
+
+1. En la página del repositorio, en la columna derecha, entra en **Releases** y pulsa **Draft a new release**.
+2. En **Choose a tag**, elige `vX.Y.Z`.
+3. Título: `vX.Y.Z`.
+4. Escribe las notas de la release (paso 6).
+5. Si la versión es `0.x.y`, marca **Set as a pre-release**. A partir de `1.0.0`, no la marques y deja **Set as the latest release**.
+6. Pulsa **Publish release**.
+
+**6. Notas de la release**
+
+Para ver los commits desde la versión anterior (en la primera release, quita `vANTERIOR..`):
+
+```bash
+git log vANTERIOR..vX.Y.Z --oneline --no-merges
+```
+
+Plantilla de las notas:
+
+```markdown
+## APOREL10 vX.Y.Z
+
+Breve descripción de la aplicación y del estado del proyecto.
+
+### Funcionalidades
+- (a partir de los commits `feat`)
+
+### Correcciones
+- (a partir de los commits `fix`)
+
+### Pendiente para próximas versiones
+- ...
+
+Instrucciones de instalación y uso: [README.md](https://github.com/RubenRo2/APOREL10/blob/vX.Y.Z/README.md)
+```
+
+**7. Comprobar la descarga**
+
+1. En la página de la release, descarga **Source code (zip)**.
+2. Descomprímelo en una carpeta nueva, fuera del repositorio.
+3. Dentro de esa carpeta:
+
+   ```bash
+   uv sync
+   uv run aporel10
+   ```
+
+4. Comprueba que la aplicación se abre siguiendo el `README.md` y que el `version` de `pyproject.toml` coincide con el de la release.
