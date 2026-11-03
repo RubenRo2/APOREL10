@@ -4,6 +4,17 @@ Aplicación de escritorio con interfaz gráfica orientada al análisis y modelad
 
 El sistema permite importar conjuntos de datos desde diversas fuentes (archivos CSV, Excel y bases de datos SQLite), entrenar y visualizar los modelos resultantes, exportarlos e importarlos para su posterior reutilización, y generar predicciones a partir de nuevas entradas.
 
+## Funcionalidades (versión 0.1.0)
+
+Versión en desarrollo: permite cargar y preparar los datos, pero todavía **no** crea modelos.
+
+1. **Cargar datos** desde archivos CSV (`.csv`), Excel (`.xlsx`, `.xls`) o SQLite (`.sqlite`, `.db`) y verlos en una tabla.
+2. **Seleccionar columnas**: una o varias columnas de entrada y una de salida (numéricas).
+3. **Separar los datos** en entrenamiento y test, eligiendo el porcentaje de test y la semilla.
+4. **Preprocesar** los valores inexistentes: eliminar filas o rellenar con la media, la mediana o un valor constante.
+
+Próximas versiones: creación y evaluación del modelo, guardado y carga de modelos y predicciones.
+
 ## Requisitos previos
 
 Es necesario tener instalado el gestor de paquetes y proyectos **uv**:
