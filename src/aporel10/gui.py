@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel,
                                QLineEdit, QMainWindow, QMessageBox, QPushButton,
                                QTableWidget, QTableWidgetItem, QVBoxLayout,
                                QWidget, QListWidget, QComboBox, QGroupBox, QSizePolicy,
-                               QAbstractItemView, QHeaderView, QScrollArea)
+                               QAbstractItemView, QFrame, QHeaderView, QScrollArea)
 from PySide6.QtCore import Qt
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -29,6 +29,14 @@ from aporel10.missing_values import (
 # Solo se muestran en el explorador los formatos que admite data_loader.
 FILTRO_DATOS = "Datos (*.csv *.xlsx *.xls *.sqlite *.db)"
 VELOCIDAD_SCROLL = 5 # Píxeles de avance por cada clic de la rueda del ratón
+VELOCIDAD_SCROLL_VENTANA = 30 # Igual, pero para el desplazamiento de la ventana completa
+
+
+class ComboSinRueda(QComboBox):
+    """Desplegable que deja pasar la rueda para no cambiar de valor al hacer scroll."""
+
+    def wheelEvent(self, event) -> None:
+        event.ignore()
 
 
 class VentanaPrincipal(QMainWindow):
@@ -79,7 +87,7 @@ class VentanaPrincipal(QMainWindow):
         self.tabla = QTableWidget()
         
         self.tabla.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.tabla.setMinimumHeight(200)
+        self.tabla.setMinimumHeight(300)
         
         fila_carga = QHBoxLayout()
         fila_carga.addWidget(self.boton_cargar)
@@ -97,7 +105,7 @@ class VentanaPrincipal(QMainWindow):
         self.lista_entradas.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self.lista_entradas.verticalScrollBar().setSingleStep(VELOCIDAD_SCROLL)
         
-        self.combo_salida = QComboBox()
+        self.combo_salida = ComboSinRueda()
         self.combo_salida.view().setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self.combo_salida.view().verticalScrollBar().setSingleStep(VELOCIDAD_SCROLL)
         
@@ -163,11 +171,14 @@ class VentanaPrincipal(QMainWindow):
         layout_principal.addWidget(grupo_separacion, stretch=0)   
         layout_principal.addWidget(self.grupo_preprocesado, stretch=0)
         layout_principal.addWidget(self.grupo_modelo, stretch=0)
-        # Permitir desplazamiento para visualizar el gráfico
+        # Permitir desplazamiento para que cada sección conserve su altura
         desplazamiento = QScrollArea()
         desplazamiento.setWidgetResizable(True)
+        desplazamiento.setFrameShape(QFrame.Shape.NoFrame)
+        desplazamiento.verticalScrollBar().setSingleStep(VELOCIDAD_SCROLL_VENTANA)
+        desplazamiento.setWidget(contenido)
 
-        self.setCentralWidget(contenido)
+        self.setCentralWidget(desplazamiento)
 
    
     def _crear_panel_preprocesado(self) -> None:
@@ -182,7 +193,7 @@ class VentanaPrincipal(QMainWindow):
         self.tabla_faltantes.setHorizontalHeaderLabels(["Columna", "Entrenamiento", "Test"])
         
         self.tabla_faltantes.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
-        self.tabla_faltantes.setMaximumHeight(100)
+        self.tabla_faltantes.setFixedHeight(180)
 
         layout_preprocesado.addWidget(self.etiqueta_faltantes)
         layout_preprocesado.addWidget(self.tabla_faltantes)
@@ -192,7 +203,7 @@ class VentanaPrincipal(QMainWindow):
         fila_tratamiento = QHBoxLayout()
         fila_tratamiento.addWidget(QLabel("Tratamiento:"))
 
-        self.combo_estrategia = QComboBox()
+        self.combo_estrategia = ComboSinRueda()
         self.combo_estrategia.view().setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self.combo_estrategia.view().verticalScrollBar().setSingleStep(VELOCIDAD_SCROLL)
         
@@ -253,7 +264,7 @@ class VentanaPrincipal(QMainWindow):
         self.tabla_metricas.setEditTriggers(
             QAbstractItemView.EditTrigger.NoEditTriggers
         )
-        self.tabla_metricas.setMaximumHeight(105)
+        self.tabla_metricas.setFixedHeight(120)
 
         for fila, nombre in enumerate(("R²", "ECM")):
             self.tabla_metricas.setItem(
@@ -272,7 +283,7 @@ class VentanaPrincipal(QMainWindow):
             facecolor="#252525",
         )
         self.canvas_modelo = FigureCanvas(self.figura_modelo)
-        self.canvas_modelo.setMinimumHeight(300)
+        self.canvas_modelo.setMinimumHeight(400)
 
         layout_modelo.addWidget(self.canvas_modelo)    
     
