@@ -8,12 +8,16 @@ from PySide6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel,
                                QLineEdit, QMainWindow, QMessageBox, QPushButton,
                                QTableWidget, QTableWidgetItem, QVBoxLayout,
                                QWidget, QListWidget, QComboBox, QGroupBox, QSizePolicy,
-                               QAbstractItemView)
+                               QAbstractItemView, QHeaderView, QScrollArea)
 from PySide6.QtCore import Qt
+
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
 
 from aporel10.data_loader import ErrorImportacionDatos, cargar_datos
 from aporel10.column_selector import ErrorSeleccionColumnas, validar_seleccion
 from aporel10.data_splitter import ErrorSeparacionDatos, separar_datos
+from aporel10.model import ErrorRegresion, entrenar_regresion_lineal
 from aporel10.missing_values import (
     ErrorPreprocesado,
     aplicar_preprocesado,
@@ -62,6 +66,7 @@ class VentanaPrincipal(QMainWindow):
 
         self.preprocesado = None
         self.modelo = None
+        self.resultado_modelo = None
         self.datos_listos_para_modelo = False
     
     
@@ -144,6 +149,7 @@ class VentanaPrincipal(QMainWindow):
         
         # 4º Preprocesado
         self._crear_panel_preprocesado()
+        self._crear_panel_modelo()
         
         # 5º Ensamblaje final 
         contenido = QWidget()
@@ -156,6 +162,10 @@ class VentanaPrincipal(QMainWindow):
         layout_principal.addWidget(grupo_variables, stretch=0)   
         layout_principal.addWidget(grupo_separacion, stretch=0)   
         layout_principal.addWidget(self.grupo_preprocesado, stretch=0)
+        layout_principal.addWidget(self.grupo_modelo, stretch=0)
+        # Permitir desplazamiento para visualizar el gráfico
+        desplazamiento = QScrollArea()
+        desplazamiento.setWidgetResizable(True)
 
         self.setCentralWidget(contenido)
 
@@ -209,7 +219,62 @@ class VentanaPrincipal(QMainWindow):
         self.etiqueta_disponibilidad_modelo = QLabel("Creación del modelo: no disponible")
 
         layout_preprocesado.addWidget(self.etiqueta_estado_preprocesado)
-        layout_preprocesado.addWidget(self.etiqueta_disponibilidad_modelo)    
+        layout_preprocesado.addWidget(self.etiqueta_disponibilidad_modelo)
+
+
+    def _crear_panel_modelo(self) -> None:
+        """Construye el panel de resultados de la regresión lineal."""
+        self.grupo_modelo = QGroupBox("Modelo de regresión lineal")
+        layout_modelo = QVBoxLayout(self.grupo_modelo)
+
+        # Botón de creación
+        self.boton_crear_modelo = QPushButton("Crear modelo")
+        self.boton_crear_modelo.setEnabled(False)
+        layout_modelo.addWidget(self.boton_crear_modelo)
+
+        # Fórmula del modelo
+        self.etiqueta_formula = QLabel("No se ha creado ningún modelo.")
+        self.etiqueta_formula.setWordWrap(True)
+        self.etiqueta_formula.setTextFormat(Qt.TextFormat.PlainText)
+        self.etiqueta_formula.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        layout_modelo.addWidget(self.etiqueta_formula)
+
+        # Tabla de métricas
+        self.tabla_metricas = QTableWidget(2, 3)
+        self.tabla_metricas.setHorizontalHeaderLabels(
+            ["Métrica", "Entrenamiento", "Test"]
+        )
+        self.tabla_metricas.verticalHeader().setVisible(False)
+        self.tabla_metricas.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
+        self.tabla_metricas.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers
+        )
+        self.tabla_metricas.setMaximumHeight(105)
+
+        for fila, nombre in enumerate(("R²", "ECM")):
+            self.tabla_metricas.setItem(
+                fila, 0, QTableWidgetItem(nombre)
+            )
+            for columna in (1, 2):
+                self.tabla_metricas.setItem(
+                    fila, columna, QTableWidgetItem("—")
+                )
+
+        layout_modelo.addWidget(self.tabla_metricas)
+
+        # Gráfico integrado
+        self.figura_modelo = Figure(
+            figsize=(7, 4),
+            facecolor="#252525",
+        )
+        self.canvas_modelo = FigureCanvas(self.figura_modelo)
+        self.canvas_modelo.setMinimumHeight(300)
+
+        layout_modelo.addWidget(self.canvas_modelo)    
     
      
     def _conectar_señales(self) -> None:
@@ -218,6 +283,7 @@ class VentanaPrincipal(QMainWindow):
         self.boton_validar.clicked.connect(self.validar_variables)
         self.boton_separar.clicked.connect(self.separar)
         self.boton_aplicar.clicked.connect(self.aplicar_preprocesado_gui)
+        self.boton_crear_modelo.clicked.connect(self.crear_modelo_gui)
         
         self.combo_estrategia.currentIndexChanged.connect(self.actualizar_opcion_constante)
         self.lista_entradas.itemSelectionChanged.connect(self.descartar_seleccion)
@@ -376,6 +442,8 @@ class VentanaPrincipal(QMainWindow):
         self.etiqueta_disponibilidad_modelo.setText("Creación del modelo: no disponible")
         self.boton_aplicar.setEnabled(False)
 
+        self.invalidar_modelo()
+
 
     def mostrar_tabla(self, datos: pd.DataFrame) -> None:
         """Muestra todas las filas y columnas de los datos en la tabla."""
@@ -505,6 +573,7 @@ class VentanaPrincipal(QMainWindow):
         self.boton_aplicar.setEnabled(
             not self.datos_listos_para_modelo
         )
+        self.actualizar_boton_modelo()
 
         if self.datos_listos_para_modelo:
             self.etiqueta_faltantes.setText(
@@ -565,7 +634,7 @@ class VentanaPrincipal(QMainWindow):
         self.datos_entrenamiento = entrenamiento_limpio
         self.datos_test = test_limpio
         self.preprocesado = estrategia
-        self.modelo = None
+        self.invalidar_modelo()
     
         self.etiqueta_separacion.setText(
             f"Entrenamiento: {len(entrenamiento_limpio)} filas | "
@@ -594,6 +663,200 @@ class VentanaPrincipal(QMainWindow):
             self, "Preprocesado aplicado", mensaje
         )
 
+    def actualizar_boton_modelo(self) -> None:
+        """Habilita la creación solo cuando se cumplen los requisitos."""
+        listo = (
+            bool(self.entradas)
+            and bool(self.salida)
+            and self.datos_entrenamiento is not None
+            and self.datos_test is not None
+            and self.datos_listos_para_modelo
+        )
+
+        self.boton_crear_modelo.setEnabled(bool(listo))
+
+
+    def invalidar_modelo(self) -> None:
+        """Descarta un modelo anterior y limpia sus resultados visuales."""
+        self.modelo = None
+        self.resultado_modelo = None
+
+        self.etiqueta_formula.setText(
+            "No se ha creado ningún modelo."
+        )
+
+        for fila in range(2):
+            for columna in (1, 2):
+                self.tabla_metricas.item(
+                    fila, columna
+                ).setText("—")
+
+        self.figura_modelo.clear()
+        self.canvas_modelo.draw_idle()
+
+        self.actualizar_boton_modelo()
+
+
+    def crear_modelo_gui(self) -> None:
+        """Solicita el entrenamiento y muestra los resultados."""
+        if not self.boton_crear_modelo.isEnabled():
+            return
+
+        try:
+            resultado = entrenar_regresion_lineal(
+                self.datos_entrenamiento,
+                self.datos_test,
+                self.entradas,
+                self.salida,
+            )
+
+            self.dibujar_grafico_modelo(
+                resultado["grafico"]
+            )
+
+        except ErrorRegresion as error:
+            QMessageBox.warning(
+                self,
+                "Error al crear el modelo",
+                str(error),
+            )
+            return
+
+        except Exception as error:
+            QMessageBox.critical(
+                self,
+                "Error al crear el modelo",
+                f"No se ha podido mostrar el modelo: {error}",
+            )
+            return
+
+        # Sustituir el modelo anterior
+        self.modelo = resultado["modelo"]
+        self.resultado_modelo = resultado
+
+        # Mostrar la fórmula
+        self.etiqueta_formula.setText(
+            resultado["formula"]
+        )
+
+        # Mostrar las métricas
+        for columna, conjunto in (
+            (1, "entrenamiento"),
+            (2, "test"),
+        ):
+            metricas = resultado["metricas"][conjunto]
+
+            self.tabla_metricas.item(
+                0, columna
+            ).setText(
+                f"{metricas['r2']:.4f}"
+            )
+
+            self.tabla_metricas.item(
+                1, columna
+            ).setText(
+                f"{metricas['ecm']:,.4f}"
+            )
+
+        QMessageBox.information(
+            self,
+            "Modelo creado",
+            "El modelo de regresión lineal "
+            "se ha creado correctamente.",
+        )
+
+    def dibujar_grafico_modelo(self, grafico: dict) -> None:
+        """Dibuja los datos preparados por el módulo model."""
+        self.figura_modelo.clear()
+        ejes = self.figura_modelo.add_subplot(111)
+        ejes.set_facecolor("#252525")
+
+        if grafico["tipo"] == "simple":
+            ejes.scatter(
+                grafico["train_x"],
+                grafico["train_y"],
+                label="Entrenamiento",
+                color="tab:blue",
+                s=16,
+                alpha=0.65,
+            )
+
+            ejes.scatter(
+                grafico["test_x"],
+                grafico["test_y"],
+                label="Test",
+                color="tab:orange",
+                marker="x",
+                s=22,
+                alpha=0.8,
+            )
+
+            ejes.plot(
+                grafico["linea_x"],
+                grafico["linea_y"],
+                label="Recta de ajuste",
+                color="tab:red",
+                linewidth=2,
+            )
+
+            ejes.set_xlabel(grafico["eje_x"])
+            ejes.set_ylabel(grafico["eje_y"])
+
+        else:
+            ejes.scatter(
+                grafico["train_real"],
+                grafico["train_predicho"],
+                label="Entrenamiento",
+                color="tab:blue",
+                s=16,
+                alpha=0.65,
+            )
+
+            ejes.scatter(
+                grafico["test_real"],
+                grafico["test_predicho"],
+                label="Test",
+                color="tab:orange",
+                marker="x",
+                s=22,
+                alpha=0.8,
+            )
+
+            ejes.plot(
+                [
+                    grafico["linea_min"],
+                    grafico["linea_max"],
+                ],
+                [
+                    grafico["linea_min"],
+                    grafico["linea_max"],
+                ],
+                label="Predicción perfecta",
+                color="tab:red",
+                linestyle="--",
+                linewidth=2,
+            )
+
+            ejes.set_xlabel("Valor real")
+            ejes.set_ylabel("Valor predicho")
+
+        # Aplicar el estilo oscuro
+        ejes.tick_params(colors="#e0e0e0")
+        ejes.xaxis.label.set_color("#e0e0e0")
+        ejes.yaxis.label.set_color("#e0e0e0")
+
+        for borde in ejes.spines.values():
+            borde.set_color("#777777")
+
+        ejes.grid(alpha=0.2)
+        ejes.legend(
+            facecolor="#333333",
+            edgecolor="#777777",
+            labelcolor="white",
+        )
+
+        self.figura_modelo.tight_layout()
+        self.canvas_modelo.draw_idle()
 
 def ejecutar() -> None:
     """Abre la ventana principal y espera a que el usuario la cierre."""
