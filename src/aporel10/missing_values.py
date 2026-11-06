@@ -26,15 +26,16 @@ def _validar_columnas(datos: pd.DataFrame, columnas: list[str]) -> None:
 
 
 def _marcar_vacios(serie: pd.Series) -> pd.Series:
-    """Interpreta cadenas vacías o compuestas de espacios como valores nulos."""
+    """Interpreta cadenas vacías o de solo espacios como valores nulos."""
     vacios = serie.map(
         lambda valor: isinstance(valor, str) and not valor.strip()
     )
     return serie.mask(vacios)
 
 
-def detectar_valores_inexistentes(datos: pd.DataFrame, columnas: list[str]) -> dict[str, int]:
-    """Cuenta NaN, None y celdas vacías por columna, sin modificar los datos."""
+def detectar_valores_inexistentes(datos: pd.DataFrame,
+                                  columnas: list[str]) -> dict[str, int]:
+    """Cuenta NaN, None y celdas vacías por columna sin modificar datos."""
     _validar_columnas(datos, columnas)
     return {
         columna: int(_marcar_vacios(datos[columna]).isna().sum())
@@ -42,8 +43,9 @@ def detectar_valores_inexistentes(datos: pd.DataFrame, columnas: list[str]) -> d
     }
 
 
-def normalizar_columnas(datos: pd.DataFrame, columnas: list[str]) -> pd.DataFrame:
-    """Devuelve una copia con columnas seleccionadas numéricas y vacíos como NaN.
+def normalizar_columnas(datos: pd.DataFrame,
+                        columnas: list[str]) -> pd.DataFrame:
+    """Devuelve una copia con columnas elegidas numéricas y vacíos como NaN.
 
     Los textos numéricos son válidos, pero no se convierten textos arbitrarios
     en NaN silenciosamente: esos valores generan un error explícito.
@@ -59,7 +61,7 @@ def normalizar_columnas(datos: pd.DataFrame, columnas: list[str]) -> pd.DataFram
         except (ValueError, TypeError) as error:
             raise ErrorPreprocesado(
                 f"La columna '{columna}' contiene valores no numéricos."
-            ) from error     
+            ) from error
     return copia
 
 
@@ -67,7 +69,7 @@ def _validar_constante(valor_constante: object) -> float:
     """Valida que el valor constante sea un número real y finito."""
     if isinstance(valor_constante, bool) or valor_constante is None:
         raise ErrorPreprocesado("El valor constante debe ser numérico.")
-    
+
     try:
         if isinstance(valor_constante, str):
             valor_constante = valor_constante.strip().replace(",", ".")
@@ -76,17 +78,17 @@ def _validar_constante(valor_constante: object) -> float:
         raise ErrorPreprocesado(
             "El valor constante debe ser numérico."
         ) from error
-    
+
     if not isfinite(numero):
-        raise ErrorPreprocesado("El valor constante debe ser un número finito.")
+        raise ErrorPreprocesado(
+            "El valor constante debe ser un número finito.")
     return numero
 
 
 def aplicar_preprocesado(
-    entrenamiento: pd.DataFrame,test: pd.DataFrame,
-    columnas: list[str],estrategia: str,valor_constante: object = None,
+    entrenamiento: pd.DataFrame, test: pd.DataFrame,
+    columnas: list[str], estrategia: str, valor_constante: object = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, int, int]:
-    
     """Trata nulos de ambos conjuntos sin modificar los DataFrames recibidos.
 
     Estrategias: 'eliminar', 'media', 'mediana' y 'constante'. La media o
@@ -132,7 +134,8 @@ def aplicar_preprocesado(
             len(test) - len(test_limpio),
         )
 
-    afectados_entrenamiento = int(entrenamiento_limpio[columnas].isna().sum().sum())
+    afectados_entrenamiento = int(
+        entrenamiento_limpio[columnas].isna().sum().sum())
     afectados_test = int(test_limpio[columnas].isna().sum().sum())
 
     if estrategia == "constante":
@@ -154,7 +157,8 @@ def aplicar_preprocesado(
                 )
             valores[columna] = valor
 
-    entrenamiento_limpio[columnas] = (entrenamiento_limpio[columnas].fillna(value=valores))
+    entrenamiento_limpio[columnas] = (
+        entrenamiento_limpio[columnas].fillna(value=valores))
     test_limpio[columnas] = test_limpio[columnas].fillna(value=valores)
 
     return (

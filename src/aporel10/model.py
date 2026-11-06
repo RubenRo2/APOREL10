@@ -18,7 +18,8 @@ def _validar_datos(datos, nombre_conjunto, entradas, salida):
 
     if len(datos) < 2:
         raise ErrorRegresion(
-            f"El conjunto de {nombre_conjunto} necesita al menos 2 filas para calcular R²."
+            f"El conjunto de {nombre_conjunto} necesita al menos 2 filas "
+            "para calcular R²."
         )
 
     columnas = entradas + [salida]

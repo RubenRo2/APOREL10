@@ -68,7 +68,8 @@ def separar_datos(
         )
     if n_entrenamiento == 0:
         raise ErrorSeparacionDatos(
-            f"Con un {porcentaje_test} % el conjunto de entrenamiento quedaría "
+            f"Con un {porcentaje_test} % el conjunto de entrenamiento "
+            f"quedaría "
             "vacío. Reduce el porcentaje de test."
         )
 
@@ -77,5 +78,3 @@ def separar_datos(
     test = mezclados.iloc[:n_test]
     entrenamiento = mezclados.iloc[n_test:]
     return entrenamiento, test
-
-

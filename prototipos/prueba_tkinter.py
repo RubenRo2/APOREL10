@@ -1,8 +1,8 @@
 """
 Módulo de prueba para la interfaz gráfica con Tkinter.
 
-Este módulo implementa una interfaz gráfica para evaluar 
-la viabilidad de Tkinter en el proyecto. Incluye componentes como 
+Este módulo implementa una interfaz gráfica para evaluar
+la viabilidad de Tkinter en el proyecto. Incluye componentes como
 selección de archivos, tabla de datos, desplegables y campos de texto.
 """
 
@@ -14,7 +14,7 @@ def open_file_dialog():
     """
     Abre un cuadro de diálogo para que el usuario seleccione un archivo.
 
-    Si el usuario selecciona un archivo válido, actualiza la etiqueta de 
+    Si el usuario selecciona un archivo válido, actualiza la etiqueta de
     la interfaz (lbl_path) para mostrar la ruta y cambia su color a verde.
     """
     file_path = filedialog.askopenfilename(
@@ -28,8 +28,8 @@ def show_summary_message():
     """
     Recopila los datos y muestra un cuadro de diálogo de resumen.
 
-    Obtiene el valor seleccionado en el desplegable y el texto 
-    introducido. Si el texto está vacío o contiene el placeholder, 
+    Obtiene el valor seleccionado en el desplegable y el texto
+    introducido. Si el texto está vacío o contiene el placeholder,
     se asigna '[Vacío]'.
     """
     selected_option = combo_box.get()
