@@ -1,4 +1,3 @@
-
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
@@ -39,7 +38,7 @@ def _validar_datos(datos, nombre_conjunto, entradas, salida):
             f"Las columnas de {nombre_conjunto} deben ser numéricas: "
             + ", ".join(no_numericas)
             + "."
-        )
+        ) 
 
     con_nulos = [
         col for col in columnas if datos[col].isna().any()
@@ -162,6 +161,67 @@ def preparar_grafico(
         "test_predicho": pred_test,
         "linea_min": float(valores.min()),
         "linea_max": float(valores.max()),
+    }
+
+
+def preparar_grafico_variable(
+    modelo,
+    datos_entrenamiento,
+    datos_test,
+    entradas,
+    salida,
+    variable,
+):
+    """Representa el efecto de una entrada manteniendo las otras en su media.
+
+    Las medias se calculan exclusivamente a partir del entrenamiento.
+    No se vuelve a ajustar el modelo.
+    """
+    if variable not in entradas:
+        raise ErrorRegresion(
+            f"La columna '{variable}' no es una entrada del modelo."
+        )
+
+    _validar_datos(
+        datos_entrenamiento, "entrenamiento", entradas, salida
+    )
+    _validar_datos(datos_test, "test", entradas, salida)
+
+    minimo = min(
+        float(datos_entrenamiento[variable].min()),
+        float(datos_test[variable].min()),
+    )
+    maximo = max(
+        float(datos_entrenamiento[variable].max()),
+        float(datos_test[variable].max()),
+    )
+    linea_x = np.linspace(minimo, maximo, 100)
+
+    # El resto de entradas se mantienen en su media de entrenamiento.
+    medias = datos_entrenamiento[entradas].mean()
+    predictores = pd.DataFrame({
+        columna: np.full(len(linea_x), float(medias[columna]))
+        for columna in entradas
+    })
+    predictores[variable] = linea_x
+
+    try:
+        linea_y = modelo.predict(predictores[entradas])
+    except (ValueError, TypeError) as exc:
+        raise ErrorRegresion(
+            f"No se pudo representar la variable '{variable}': {exc}"
+        ) from exc
+
+    return {
+        "tipo": "variable",
+        "eje_x": variable,
+        "eje_y": salida,
+        "train_x": datos_entrenamiento[variable].to_numpy(),
+        "train_y": datos_entrenamiento[salida].to_numpy(),
+        "test_x": datos_test[variable].to_numpy(),
+        "test_y": datos_test[salida].to_numpy(),
+        "linea_x": linea_x,
+        "linea_y": linea_y,
     }
 
 

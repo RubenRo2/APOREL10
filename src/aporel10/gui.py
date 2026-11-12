@@ -24,7 +24,7 @@ from matplotlib.figure import Figure
 from aporel10.data_loader import ErrorImportacionDatos, cargar_datos
 from aporel10.column_selector import ErrorSeleccionColumnas, validar_seleccion
 from aporel10.data_splitter import ErrorSeparacionDatos, separar_datos
-from aporel10.model import ErrorRegresion, entrenar_regresion_lineal
+from aporel10.model import ErrorRegresion, entrenar_regresion_lineal, preparar_grafico_variable
 from aporel10.missing_values import (
     ErrorPreprocesado,
     aplicar_preprocesado,
@@ -669,7 +669,34 @@ class VentanaPrincipal(QMainWindow):
         self.canvas_modelo = CanvasGrafica(self.figura_modelo)
         self.canvas_modelo.setMinimumHeight(ALTO_GRAFICO)
 
+                # Selector de visualización. Solo estará activo tras entrenar.
+        self.combo_vista_modelo = ComboSinRueda()
+        self.combo_vista_modelo.addItem(
+            "Regresión por variable", "variable"
+        )
+        self.combo_vista_modelo.addItem(
+            "Reales vs. predichos", "predichos"
+        )
+        self.combo_vista_modelo.setEnabled(False)
+
+        self.combo_variable_modelo = ComboSinRueda()
+        self.combo_variable_modelo.setEnabled(False)
+        self.etiqueta_variable_modelo = QLabel("Variable de entrada:")
+
+        fila_selector = QHBoxLayout()
+        fila_selector.addWidget(QLabel("Visualización:"))
+        fila_selector.addWidget(self.combo_vista_modelo)
+        fila_selector.addSpacing(12)
+        fila_selector.addWidget(self.etiqueta_variable_modelo)
+        fila_selector.addWidget(self.combo_variable_modelo)
+        fila_selector.addStretch()
+
+        self.etiqueta_contexto_grafico = QLabel("")
+        self.etiqueta_contexto_grafico.setWordWrap(True)
+
         layout_modelo.addLayout(fila_resultados)
+        layout_modelo.addLayout(fila_selector)
+        layout_modelo.addWidget(self.etiqueta_contexto_grafico)
         layout_modelo.addWidget(self.canvas_modelo, stretch=1)
 
     def _conectar_señales(self) -> None:
@@ -681,6 +708,12 @@ class VentanaPrincipal(QMainWindow):
         self.boton_separar.clicked.connect(self.separar)
         self.boton_aplicar.clicked.connect(self.aplicar_preprocesado_gui)
         self.boton_crear_modelo.clicked.connect(self.crear_modelo_gui)
+        self.combo_vista_modelo.currentIndexChanged.connect(
+            self.actualizar_grafico_modelo
+        )
+        self.combo_variable_modelo.currentIndexChanged.connect(
+            self.actualizar_grafico_modelo
+        )
 
         self.combo_estrategia.currentIndexChanged.connect(
             self.actualizar_opcion_constante)
@@ -1164,6 +1197,13 @@ class VentanaPrincipal(QMainWindow):
                     fila, columna
                 ).setText("—")
 
+        self.combo_vista_modelo.setEnabled(False)
+        self.combo_variable_modelo.blockSignals(True)
+        self.combo_variable_modelo.clear()
+        self.combo_variable_modelo.blockSignals(False)
+        self.combo_variable_modelo.setEnabled(False)
+        self.etiqueta_contexto_grafico.setText("")
+
         self.figura_modelo.clear()
         self.canvas_modelo.recordar_vista()
         self.boton_vista_inicial.setEnabled(False)
@@ -1184,9 +1224,17 @@ class VentanaPrincipal(QMainWindow):
                 self.salida,
             )
 
-            self.dibujar_grafico_modelo(
-                resultado["grafico"]
+            # Vista inicial: primera entrada, manteniendo las demás
+            # en sus medias del conjunto de entrenamiento.
+            grafico = preparar_grafico_variable(
+                resultado["modelo"],
+                self.datos_entrenamiento,
+                self.datos_test,
+                resultado["entradas"],
+                resultado["salida"],
+                resultado["entradas"][0],
             )
+            self.dibujar_grafico_modelo(grafico)
 
         except ErrorRegresion as error:
             QMessageBox.warning(
@@ -1207,6 +1255,29 @@ class VentanaPrincipal(QMainWindow):
         # Sustituir el modelo anterior
         self.modelo = resultado["modelo"]
         self.resultado_modelo = resultado
+
+        # Cargar las columnas seleccionables sin disparar redibujados.
+        self.combo_vista_modelo.blockSignals(True)
+        self.combo_variable_modelo.blockSignals(True)
+
+        self.combo_vista_modelo.setCurrentIndex(0)
+        self.combo_variable_modelo.clear()
+        self.combo_variable_modelo.addItems(resultado["entradas"])
+
+        self.combo_variable_modelo.blockSignals(False)
+        self.combo_vista_modelo.blockSignals(False)
+
+        multiple = len(resultado["entradas"]) > 1
+
+        self.combo_vista_modelo.setEnabled(multiple)
+        self.combo_variable_modelo.setEnabled(multiple)
+        self.etiqueta_variable_modelo.setEnabled(multiple)
+
+        self.etiqueta_contexto_grafico.setText(
+            "Recta del modelo completo: las otras variables se "
+            "mantienen en sus medias de entrenamiento. "
+            "Los puntos muestran valores reales sin ajustar."
+        )
 
         # Mostrar la fórmula
         self.etiqueta_formula.setText(
@@ -1239,13 +1310,67 @@ class VentanaPrincipal(QMainWindow):
             "se ha creado correctamente.",
         )
 
+    
+    def actualizar_grafico_modelo(self, _indice: int = -1) -> None:
+        """Cambia la vista o la columna sin reentrenar el modelo."""
+        if self.resultado_modelo is None:
+            return
+
+        por_variable = (
+            self.combo_vista_modelo.currentData() == "variable"
+        )
+        multiple = len(self.resultado_modelo["entradas"]) > 1
+
+        self.combo_variable_modelo.setEnabled(por_variable and multiple)
+        self.etiqueta_variable_modelo.setEnabled(por_variable and multiple)
+
+        try:
+            if por_variable:
+                grafico = preparar_grafico_variable(
+                    self.modelo,
+                    self.datos_entrenamiento,
+                    self.datos_test,
+                    self.resultado_modelo["entradas"],
+                    self.resultado_modelo["salida"],
+                    self.combo_variable_modelo.currentText(),
+                )
+
+                self.etiqueta_contexto_grafico.setText(
+                    "Recta del modelo completo: las otras variables se "
+                    "mantienen en sus medias de entrenamiento. "
+                    "Los puntos muestran valores reales sin ajustar."
+                )
+
+            else:
+                grafico = self.resultado_modelo["grafico"]
+
+                self.etiqueta_contexto_grafico.setText(
+                    "La diagonal representa predicciones perfectas (y = x)."
+                )
+
+            self.dibujar_grafico_modelo(grafico)
+
+        except Exception as error:
+            QMessageBox.warning(
+                self,
+                "Error al actualizar la gráfica",
+                str(error),
+            )
+
+
     def dibujar_grafico_modelo(self, grafico: dict) -> None:
         """Dibuja los datos preparados por el módulo model."""
         self.figura_modelo.clear()
         ejes = self.figura_modelo.add_subplot(111)
         ejes.set_facecolor("#252525")
 
-        if grafico["tipo"] == "simple":
+        if grafico["tipo"] in ("simple", "variable"):
+            
+            ejes.set_title(
+                f"Efecto de {grafico['eje_x']} sobre {grafico['eje_y']}",
+                color="#e0e0e0",
+            )
+
             ejes.scatter(
                 grafico["train_x"],
                 grafico["train_y"],
@@ -1268,9 +1393,10 @@ class VentanaPrincipal(QMainWindow):
             ejes.plot(
                 grafico["linea_x"],
                 grafico["linea_y"],
-                label="Recta de ajuste",
-                color="tab:red",
-                linewidth=2,
+                label="Recta condicional del modelo",
+                color="#ff5252",
+                linewidth=3,
+                zorder=10,
             )
 
             ejes.set_xlabel(grafico["eje_x"])
