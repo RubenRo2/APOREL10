@@ -21,10 +21,10 @@ def df_con_filas(n: int) -> pd.DataFrame:
     return pd.DataFrame({"x": range(n), "y": range(n)})
 
 
-# 1. Tamaños de los conjuntos 
+# 1. Tamaños de los conjuntos
 
 def test_tamanos_por_defecto(df_prueba):
-    """Sin indicar nada, separa un 80 % para entrenamiento y un 20 % para test."""
+    """Por defecto, separa un 80 % para entrenamiento y un 20 % para test."""
     entrenamiento, test = separar_datos(df_prueba)
 
     assert len(entrenamiento) == 80
@@ -38,7 +38,8 @@ def test_tamanos_por_defecto(df_prueba):
     (99, 1, 99),
     (12.5, 88, 12),
 ])
-def test_tamanos_segun_porcentaje(df_prueba, porcentaje, n_entrenamiento, n_test):
+def test_tamanos_segun_porcentaje(df_prueba, porcentaje, n_entrenamiento,
+                                  n_test):
     """Los tamaños corresponden al porcentaje de test indicado."""
     entrenamiento, test = separar_datos(df_prueba, porcentaje_test=porcentaje)
 
@@ -91,7 +92,7 @@ def test_no_modifica_el_dataset_original(df_prueba):
 # 3. Reproducibilidad ---
 
 def test_misma_semilla_misma_separacion(df_prueba):
-    """Con el mismo dataset, porcentaje y semilla se obtienen los mismos conjuntos."""
+    """Mismo dataset, porcentaje y semilla dan los mismos conjuntos."""
     entrenamiento_1, test_1 = separar_datos(df_prueba, 20, semilla=7)
     entrenamiento_2, test_2 = separar_datos(df_prueba, 20, semilla=7)
 
@@ -162,6 +163,7 @@ def test_error_test_quedaria_vacio():
 
 
 def test_error_entrenamiento_quedaria_vacio():
-    """Con 5 filas y un 99 % el conjunto de entrenamiento se quedaría sin filas."""
-    with pytest.raises(ErrorSeparacionDatos, match="entrenamiento quedaría vacío"):
+    """Con 5 filas y un 99 % el conjunto de entrenamiento queda sin filas."""
+    with pytest.raises(ErrorSeparacionDatos,
+                       match="entrenamiento quedaría vacío"):
         separar_datos(df_con_filas(5), porcentaje_test=99)

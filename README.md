@@ -4,16 +4,20 @@ Aplicación de escritorio con interfaz gráfica orientada al análisis y modelad
 
 El sistema permite importar conjuntos de datos desde diversas fuentes (archivos CSV, Excel y bases de datos SQLite), entrenar y visualizar los modelos resultantes, exportarlos e importarlos para su posterior reutilización, y generar predicciones a partir de nuevas entradas.
 
-## Funcionalidades (versión 0.1.0)
+## Funcionalidades (versión 0.2.0)
 
-Versión en desarrollo: permite cargar y preparar los datos, pero todavía **no** crea modelos.
+Versión en desarrollo: permite cargar y preparar los datos, y crear y evaluar un modelo de regresión lineal.
 
 1. **Cargar datos** desde archivos CSV (`.csv`), Excel (`.xlsx`, `.xls`) o SQLite (`.sqlite`, `.db`) y verlos en una tabla.
 2. **Seleccionar columnas**: una o varias columnas de entrada y una de salida (numéricas).
 3. **Separar los datos** en entrenamiento y test, eligiendo el porcentaje de test y la semilla.
 4. **Preprocesar** los valores inexistentes: eliminar filas o rellenar con la media, la mediana o un valor constante.
+5. **Crear y evaluar el modelo** de regresión lineal (simple o múltiple) con los datos de entrenamiento:
+   - **Fórmula** del modelo con sus coeficientes.
+   - **Métricas** R² y ECM (error cuadrático medio) sobre los conjuntos de entrenamiento y test.
+   - **Gráfico** del modelo, con dos visualizaciones: *Regresión por variable* (eligiendo la variable de entrada que se representa) y *Reales vs. predichos*. Se puede mover arrastrando, hacer zoom con la rueda del ratón y volver a la *Vista inicial*.
 
-Próximas versiones: creación y evaluación del modelo, guardado y carga de modelos y predicciones.
+Próximas versiones: guardado y carga de modelos y predicciones.
 
 ## Requisitos previos
 
@@ -45,6 +49,15 @@ Para clonar y ejecutar el proyecto en local:
 git clone https://github.com/RubenRo2/APOREL10.git
 cd APOREL10
 git switch dev
+uv sync
+uv run aporel10
+```
+
+### Desde una release
+
+Descarga el **Source code (zip)** de la release en la página [Releases](https://github.com/RubenRo2/APOREL10/releases), descomprímelo y, dentro de la carpeta:
+
+```bash
 uv sync
 uv run aporel10
 ```

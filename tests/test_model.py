@@ -1,0 +1,227 @@
+"""Pruebas del módulo de regresión, sin ficheros externos ni interfaz."""
+
+import numpy as np
+import pandas as pd
+import pytest
+
+from aporel10.model import (
+    ErrorRegresion,
+    entrenar_regresion_lineal,
+    generar_formula,
+)
+
+
+def test_regresion_simple_ajusta_solo_entrenamiento():
+    entrenamiento = pd.DataFrame({
+        "x": [0., 1., 2., 3.],
+        "y": [1., 3., 5., 7.],
+    })
+    test = pd.DataFrame({
+        "x": [4., 5.],
+        "y": [9., 12.],
+    })
+
+    resultado = entrenar_regresion_lineal(
+        entrenamiento, test, ["x"], "y"
+    )
+
+    assert resultado["modelo"].coef_[0] == pytest.approx(2.)
+    assert resultado["modelo"].intercept_ == pytest.approx(1.)
+    assert resultado["formula"] == "y = 2.0000 * x + 1.0000"
+
+    assert resultado["metricas"]["entrenamiento"]["r2"] == pytest.approx(1.)
+    assert resultado["metricas"]["entrenamiento"]["ecm"] == pytest.approx(0.)
+    assert resultado["metricas"]["test"]["ecm"] == pytest.approx(0.5)
+    assert resultado["metricas"]["test"]["r2"] == pytest.approx(7 / 9)
+
+    assert resultado["grafico"]["tipo"] == "simple"
+    assert len(resultado["grafico"]["linea_x"]) == 100
+    assert len(resultado["grafico"]["test_y"]) == len(test)
+
+
+def test_regresion_multiple_con_coeficiente_negativo():
+    entrenamiento = pd.DataFrame({
+        "a": [0., 0., 1., 1., 2., 2.],
+        "b": [0., 1., 0., 1., 0., 1.],
+    })
+
+    entrenamiento["salida"] = (
+        10 - 2 * entrenamiento["a"] + 3 * entrenamiento["b"]
+    )
+
+    test = pd.DataFrame({
+        "a": [3., 4.],
+        "b": [1., 0.],
+        "salida": [7., 2.],
+    })
+
+    resultado = entrenar_regresion_lineal(
+        entrenamiento,
+        test,
+        ["a", "b"],
+        "salida",
+        decimales=2,
+    )
+
+    assert resultado["formula"] == (
+        "salida = - 2.00 * a + 3.00 * b + 10.00"
+    )
+    assert "+ -" not in resultado["formula"]
+
+    assert resultado["metricas"]["entrenamiento"]["r2"] == pytest.approx(1.)
+    assert resultado["metricas"]["test"]["r2"] == pytest.approx(1.)
+    assert resultado["metricas"]["test"]["ecm"] == pytest.approx(0.)
+
+    assert resultado["grafico"]["tipo"] == "multiple"
+
+    np.testing.assert_allclose(
+        resultado["grafico"]["test_real"], [7., 2.]
+    )
+    np.testing.assert_allclose(
+        resultado["grafico"]["test_predicho"], [7., 2.]
+    )
+
+
+def test_formula_con_intercepto_negativo():
+    entrenamiento = pd.DataFrame({
+        "x": [0., 1., 2., 3.],
+        "y": [-5., -9., -13., -17.],
+    })
+
+    test = pd.DataFrame({
+        "x": [4., 5.],
+        "y": [-21., -25.],
+    })
+
+    resultado = entrenar_regresion_lineal(
+        entrenamiento, test, ["x"], "y", decimales=2
+    )
+
+    assert resultado["formula"] == "y = - 4.00 * x - 5.00"
+    assert "+ -" not in resultado["formula"]
+
+
+@pytest.mark.parametrize("conjunto,columna", [
+    ("entrenamiento", "x"),
+    ("test", "y"),
+])
+def test_rechaza_valores_inexistentes(conjunto, columna):
+    entrenamiento = pd.DataFrame({
+        "x": [1., 2., 3.],
+        "y": [2., 4., 6.],
+    })
+
+    test = pd.DataFrame({
+        "x": [4., 5.],
+        "y": [8., 10.],
+    })
+
+    datos = (
+        entrenamiento
+        if conjunto == "entrenamiento"
+        else test
+    )
+    datos.loc[datos.index[0], columna] = np.nan
+
+    with pytest.raises(ErrorRegresion, match=conjunto):
+        entrenar_regresion_lineal(
+            entrenamiento, test, ["x"], "y"
+        )
+
+
+def test_rechaza_columnas_no_numericas():
+    entrenamiento = pd.DataFrame({
+        "x": ["a", "b", "c"],
+        "y": [1, 2, 3],
+    })
+
+    test = pd.DataFrame({
+        "x": ["d", "e"],
+        "y": [4, 5],
+    })
+
+    with pytest.raises(ErrorRegresion, match="numéricas"):
+        entrenar_regresion_lineal(
+            entrenamiento, test, ["x"], "y"
+        )
+
+
+def test_rechaza_infinitos():
+    entrenamiento = pd.DataFrame({
+        "x": [1., np.inf, 3.],
+        "y": [2., 4., 6.],
+    })
+
+    test = pd.DataFrame({
+        "x": [4., 5.],
+        "y": [8., 10.],
+    })
+
+    with pytest.raises(ErrorRegresion, match="infinitos"):
+        entrenar_regresion_lineal(
+            entrenamiento, test, ["x"], "y"
+        )
+
+
+def test_rechaza_entradas_vacias_duplicadas_y_salida_como_entrada():
+    entrenamiento = pd.DataFrame({
+        "x": [1., 2., 3.],
+        "y": [2., 4., 6.],
+    })
+
+    test = pd.DataFrame({
+        "x": [4., 5.],
+        "y": [8., 10.],
+    })
+
+    casos = (
+        ([], "y"),
+        (["x", "x"], "y"),
+        (["y"], "y"),
+    )
+
+    for entradas, salida in casos:
+        with pytest.raises(ErrorRegresion):
+            entrenar_regresion_lineal(
+                entrenamiento, test, entradas, salida
+            )
+
+
+def test_rechaza_conjuntos_con_menos_de_dos_filas():
+    entrenamiento = pd.DataFrame({
+        "x": [1., 2., 3.],
+        "y": [2., 4., 6.],
+    })
+
+    test = pd.DataFrame({
+        "x": [4.],
+        "y": [8.],
+    })
+
+    with pytest.raises(ErrorRegresion, match="al menos 2 filas"):
+        entrenar_regresion_lineal(
+            entrenamiento, test, ["x"], "y"
+        )
+
+
+def test_formula_rechaza_numero_de_columnas_incorrecto():
+    entrenamiento = pd.DataFrame({
+        "x": [0., 1., 2.],
+        "y": [1., 3., 5.],
+    })
+
+    test = pd.DataFrame({
+        "x": [3., 4.],
+        "y": [7., 9.],
+    })
+
+    resultado = entrenar_regresion_lineal(
+        entrenamiento, test, ["x"], "y"
+    )
+
+    with pytest.raises(ErrorRegresion, match="coeficientes"):
+        generar_formula(
+            resultado["modelo"],
+            ["x", "otro"],
+            "y",
+        )

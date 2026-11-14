@@ -28,10 +28,10 @@ def ventana(app, monkeypatch):
         "x": [1.0, 2.0, None, 4.0, None, 6.0, 7.0, 8.0],
         "y": [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0],
     })
-    ventana.lista_entradas.addItems(["x", "y"])
-    ventana.combo_salida.addItems(["x", "y"])
-    ventana.lista_entradas.item(0).setSelected(True)
-    ventana.combo_salida.setCurrentText("y")
+    ventana.selector_entradas.establecer_opciones(["x", "y"])
+    ventana.selector_salida.establecer_opciones(["x", "y"])
+    ventana.selector_entradas.seleccionar(["x"])
+    ventana.selector_salida.seleccionar(["y"])
     ventana.validar_variables()
     ventana.entrada_porcentaje.setText("50")
 
@@ -65,7 +65,7 @@ def test_desde_separacion_hasta_preprocesado_y_repeticion(ventana):
     assert not ventana.datos_listos_para_modelo
     assert ventana.boton_aplicar.isEnabled()
 
-    ventana.lista_entradas.item(0).setSelected(False)
+    ventana.selector_entradas.seleccionar([])
 
     assert ventana.datos_entrenamiento is None
     assert ventana.preprocesado is None

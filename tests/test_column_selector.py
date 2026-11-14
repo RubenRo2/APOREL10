@@ -12,36 +12,39 @@ def df_prueba() -> pd.DataFrame:
     return pd.DataFrame({
         "edad": [25, 30, 35],
         "salario": [2000.5, 3000.0, 4000.5],
-        "departamento": ["Ventas", "IT", "RRHH"],  # <-- Columna de texto (inválida)
+        # <-- Columna de texto (inválida)
+        "departamento": ["Ventas", "IT", "RRHH"],
         "experiencia": [2, 5, 8]
     })
-    
+
 
 def test_seleccion_valida(df_prueba):
     """Comprueba que una selección correcta no da ningún error."""
-    validar_seleccion(df_prueba, entradas=["edad", "salario"], salida="experiencia")
+    validar_seleccion(df_prueba, entradas=[
+                      "edad", "salario"], salida="experiencia")
     validar_seleccion(df_prueba, entradas=["experiencia"], salida="edad")
-    
+
 
 def test_error_falta_entrada(df_prueba):
     """Verifica que salta error si no mandamos entradas."""
     with pytest.raises(ErrorSeleccionColumnas, match="entrada"):
         validar_seleccion(df_prueba, entradas=[], salida="experiencia")
-        
+
 
 def test_error_falta_salida(df_prueba):
     """Verifica que salta error si no mandamos salida."""
     with pytest.raises(ErrorSeleccionColumnas, match="salida"):
         validar_seleccion(df_prueba, entradas=["edad"], salida="")
-        
+
 
 def test_error_salida_en_entrada(df_prueba):
     """Verifica que salte error si intentan usar la salida como entrada."""
     with pytest.raises(ErrorSeleccionColumnas, match="también como entrada"):
         validar_seleccion(df_prueba, entradas=["edad"], salida="edad")
-            
+
     with pytest.raises(ErrorSeleccionColumnas, match="también como entrada"):
-        validar_seleccion(df_prueba, entradas=["edad", "salario"], salida="edad")
+        validar_seleccion(df_prueba, entradas=[
+                          "edad", "salario"], salida="edad")
 
 
 def test_error_columna_inexistente(df_prueba):
@@ -51,6 +54,8 @@ def test_error_columna_inexistente(df_prueba):
 
 
 def test_error_columna_no_numerica(df_prueba):
-    """Verifica que salte error al usar texto (departamento) en la regresión."""
-    with pytest.raises(ErrorSeleccionColumnas, match="Solo se admiten columnas numéricas"):
-        validar_seleccion(df_prueba, entradas=["edad", "departamento"], salida="salario")
+    """Verifica que salte error al usar texto (departamento) en regresión."""
+    with pytest.raises(ErrorSeleccionColumnas,
+                       match="Solo se admiten columnas numéricas"):
+        validar_seleccion(df_prueba, entradas=[
+                          "edad", "departamento"], salida="salario")

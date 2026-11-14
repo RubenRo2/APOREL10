@@ -1,9 +1,9 @@
 """
 Módulo de prueba para la interfaz gráfica con PySide6.
 
-Este módulo implementa una interfaz gráfica para evaluar 
-la viabilidad de PySide6 en el proyecto. Incluye componentes nativos como 
-selección de archivos, tabla de datos con scroll automático, desplegables y 
+Este módulo implementa una interfaz gráfica para evaluar
+la viabilidad de PySide6 en el proyecto. Incluye componentes nativos como
+selección de archivos, tabla de datos con scroll automático, desplegables y
 campos de texto con placeholder nativo.
 """
 
@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 class PoCWindow(QMainWindow):
     """
     Ventana principal usando PySide6.
-    Configura la estructura visual y la lógica de los eventos (señales y slots).
+    Configura la estructura visual y la lógica de eventos (señales y slots).
     """
 
     def __init__(self):
@@ -86,7 +86,8 @@ class PoCWindow(QMainWindow):
         input_layout = QHBoxLayout(group_inputs)
 
         self.combo_box = QComboBox()
-        opciones = ["Opción 1: Procesar", "Opción 2: Limpiar", "Opción 3: Exportar"]
+        opciones = ["Opción 1: Procesar",
+                    "Opción 2: Limpiar", "Opción 3: Exportar"]
         self.combo_box.addItems(opciones)
 
         self.text_input = QLineEdit()
@@ -101,9 +102,9 @@ class PoCWindow(QMainWindow):
         self.btn_submit = QPushButton("Aplicar y Mostrar Resumen")
         self.btn_submit.setStyleSheet("""
             QPushButton {
-                background-color: #4CAF50; 
-                color: white; 
-                font-weight: bold; 
+                background-color: #4CAF50;
+                color: white;
+                font-weight: bold;
                 padding: 8px;
                 border-radius: 4px;
             }

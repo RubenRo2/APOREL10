@@ -139,10 +139,12 @@ Cada prueba que pasa aparece como `.` (`PASSED` con `-v`) y cada una que falla c
 
   (Es un ejemplo: el módulo `importacion` y pandas llegarán con la historia #10.)
 
-### 7.4. Reglas de fusión según el resultado de las pruebas
+### 7.4. Reglas de fusión y GitHub Actions
 
-- Antes de abrir la Pull Request de una rama de trabajo (`feature`, `fix` o `docs`) hacia `dev`, se actualiza con los últimos cambios de `dev` (sección 3, paso 2) y se ejecuta `uv run pytest`. **Solo se fusiona si todas las pruebas pasan.**
-- `dev` solo se fusiona en `main` si todas las pruebas pasan sobre `dev`.
+- Antes de abrir la Pull Request de una rama de trabajo (`feature`, `fix` o `docs`) hacia `dev`, se actualiza con los últimos cambios de `dev`(sección 3, paso 2) y se comprueba en local con `uv run pytest`.
+- **Validación obligatoria:** Las ramas de trabajo solo se fusionarán en `dev` si pasan las pruebas locales **Y** la última ejecución automática en la pestaña Actions de GitHub finaliza con éxito (✅).
+- **Protección de `dev`:** Si tras un merge el flujo de GitHub Actions falla en `dev`, se bloquean nuevas fusiones. Se debe abrir inmediatamente una tarea en Taiga y una rama `fix/` para solucionarlo.
+- El paso a producción (`dev` a `main`) solo se realizará si la última ejecución de GitHub Actions sobre `dev` ha terminado correctamente y sin errores.
 
 ## 8. Estilo de código (PEP 8)
 
