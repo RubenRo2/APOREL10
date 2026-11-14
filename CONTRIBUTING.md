@@ -188,16 +188,18 @@ Seguimos el versionado semántico (SemVer), `MAJOR.MINOR.PATCH`:
 | `feat` | MINOR (`0.1.0` → `0.2.0`) |
 | `BREAKING CHANGE` | MAJOR (`1.0.0` → `2.0.0`) |
 
+Si desde la versión anterior hay commits de varios tipos, sube solo la parte de mayor nivel y las inferiores vuelven a `0` (por ejemplo, con commits `feat` y `fix` desde `0.1.0`, la nueva versión es `0.2.0`). Los commits `docs`, `test`, `refactor` y `chore` no cambian la versión.
+
 Las versiones `0.x.y` indican que la aplicación está en desarrollo; `1.0.0` es la primera versión completa y estable. Antes de `v1.0.0` se revisa todo el código y se refactoriza en ramas desde `dev` con commits `refactor`.
 
 ### 11.2. Procedimiento de release
 
-Sustituye `X.Y.Z` por el número de la versión (por ejemplo, `0.1.0`).
+Sustituye `X.Y.Z` por el número de la versión (por ejemplo, `0.1.0`) y `ANTERIOR` por el de la versión anterior (por ejemplo, `0.1.0` al publicar `0.2.0`).
 
 **1. Requisitos previos**
 
 - Todas las historias previstas para la versión están terminadas y fusionadas en `dev`.
-- Las pruebas pasan sobre `dev`:
+- Las pruebas pasan sobre `dev` en local:
 
   ```bash
   git switch dev
@@ -206,22 +208,28 @@ Sustituye `X.Y.Z` por el número de la versión (por ejemplo, `0.1.0`).
   uv run pytest
   ```
 
+- La última ejecución de GitHub Actions sobre `dev` (pestaña **Actions**) ha terminado con éxito (✅).
 - Un miembro del equipo que no haya implementado esas historias prueba a mano la aplicación sobre `dev` con un dataset de ejemplo de su carpeta `data/`. Los errores encontrados se corrigen en ramas `fix/` antes de continuar.
-- El `README.md` describe las funcionalidades de la versión.
+- El `README.md` describe las funcionalidades de la versión. Si no, se actualiza en una rama `docs/` y se integra en `dev` (sección 3).
 
 **2. Actualizar el número de versión**
 
-Si el campo `version` de `pyproject.toml` no es ya `X.Y.Z`, se cambia en una rama de trabajo desde `dev` (`uv version` actualiza también `uv.lock`):
+Si el campo `version` de `pyproject.toml` no es ya `X.Y.Z`, se cambia en una rama de trabajo desde `dev`. La rama usa el prefijo `feature/` y el número de la tarea de Taiga de la release.
+
+Antes, actualiza `uv` (`uv self update`). Con una versión de `uv` distinta a la del resto del equipo, `uv version` puede cambiar también la línea `revision` de `uv.lock`.
 
 ```bash
+git switch dev
+git pull origin dev
 git switch -c feature/<id>-version-X.Y.Z
-uv version X.Y.Z
+uv version X.Y.Z                 # actualiza pyproject.toml y uv.lock
+git diff                         # solo deben cambiar las líneas de la versión
 uv run pytest
 git add pyproject.toml uv.lock
 git commit -m "chore: actualiza la versión a X.Y.Z"
 ```
 
-y se integra en `dev` siguiendo la sección 3.
+y se integra en `dev` siguiendo la sección 3. **No continúes hasta que la ejecución de GitHub Actions sobre `dev` termine con éxito (✅).**
 
 **3. Fusionar `dev` en `main`**
 
@@ -233,9 +241,11 @@ uv run pytest
 git push origin main
 ```
 
-Después de la fusión, `main` y `dev` tienen el mismo código y el desarrollo continúa en ramas creadas desde `dev`.
+Después de la fusión, `main` y `dev` tienen el mismo código y el desarrollo continúa en ramas creadas desde `dev`. Comprueba en **Actions** que la ejecución sobre `main` termina con éxito (✅).
 
 **4. Crear y subir la etiqueta**
+
+Desde `main`, justo después de la fusión:
 
 ```bash
 git tag -a vX.Y.Z -m "Versión X.Y.Z"
@@ -247,11 +257,16 @@ La etiqueta es *anotada* (`-a`): guarda quién la creó, cuándo y un mensaje.
 **5. Crear la release en GitHub**
 
 1. En la página del repositorio, en la columna derecha, entra en **Releases** y pulsa **Draft a new release**.
-2. En **Choose a tag**, elige `vX.Y.Z`.
-3. Título: `vX.Y.Z`.
-4. Escribe las notas de la release (paso 6).
-5. Si la versión es `0.x.y`, marca **Set as a pre-release**. A partir de `1.0.0`, no la marques y deja **Set as the latest release**.
-6. Pulsa **Publish release**.
+2. En **Choose a tag**, elige `vX.Y.Z`. Debe aparecer **Existing tag**; si no, la etiqueta no se ha subido (paso 4).
+3. **Release title** (obligatorio): `vX.Y.Z`.
+4. En **Describe this release**, pega las notas de la release (paso 6). **No pulses Generate release notes**: sustituye las notas por la lista automática de commits. Usa **Preview** para comprobar el formato.
+5. No adjuntes archivos: GitHub añade automáticamente el código fuente (**Source code (zip)** y **(tar.gz)**).
+6. Al final del formulario:
+   - Si la versión es `0.x.y`, marca **Set as a pre-release** y deja desmarcado **Set as the latest release**.
+   - A partir de `1.0.0`, no marques **Set as a pre-release** y marca **Set as the latest release**.
+7. Pulsa **Publish release** (no **Save draft**, que la deja sin publicar).
+
+Si después hay que corregir el título o las notas, entra en la release, pulsa **Edit** (icono del lápiz), cambia lo necesario y pulsa **Update release**. La etiqueta y el código no cambian.
 
 **6. Notas de la release**
 
@@ -260,6 +275,14 @@ Para ver los commits desde la versión anterior (en la primera release, quita `v
 ```bash
 git log vANTERIOR..vX.Y.Z --oneline --no-merges
 ```
+
+Cómo clasificar los commits:
+
+- `feat` → **Funcionalidades**. `fix` → **Correcciones**.
+- `docs`, `test`, `refactor` y `chore` no aparecen en las notas.
+- Los commits que no siguen Conventional Commits se clasifican por lo que hacen (por ejemplo, una investigación de una historia va en **Funcionalidades**).
+- Cada línea describe el cambio para quien usa la aplicación, no copia el mensaje del commit. Varios commits de la misma funcionalidad se agrupan en una línea.
+- Si la funcionalidad corresponde a una historia, se añade su número entre paréntesis (`(#16)`).
 
 Plantilla de las notas:
 
@@ -284,7 +307,7 @@ Instrucciones de instalación y uso: [README.md](https://github.com/RubenRo2/APO
 
 1. En la página de la release, descarga **Source code (zip)**.
 2. Descomprímelo en una carpeta nueva, fuera del repositorio.
-3. Dentro de esa carpeta:
+3. Abre una terminal **nueva** en esa carpeta, sin el entorno virtual del repositorio activado (si el prompt empieza por `(aporel10)`, ejecuta `deactivate` o abre otra terminal), y ejecuta:
 
    ```bash
    uv sync
