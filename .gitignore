@@ -6,3 +6,6 @@ __pycache__/
 
 # Datos locales: datasets y modelos guardados (no se suben al repositorio)
 data/
+
+#Modelos guardados en pruebas de prototipo
+prototipos/modelos_guardados/

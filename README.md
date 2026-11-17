@@ -66,3 +66,17 @@ uv run aporel10
 
 Los datasets de prueba (CSV, Excel, bases de datos SQLite), modelos guardados y archivos generados no se suben al repositorio.
 Deben almacenarse localmente dentro de la carpeta `data/` (excluida mediante `.gitignore`). Consulta `CONTRIBUTING.md` para más información sobre el flujo de trabajo y las normas del equipo.
+
+## Seguridad al cargar modelos
+
+La aplicación guarda los modelos entrenados y sus metadatos en archivos `.pkl` mediante Pickle.
+
+**ADVERTENCIA:** abrir un archivo `.pkl` con `pickle.load()` puede ejecutar código arbitrario durante la carga.
+
+**Carga únicamente modelos creados por esta aplicación o procedentes de una fuente conocida y confiable.** No abras archivos `.pkl` descargados de Internet ni enviados por terceros desconocidos.
+
+La extensión del archivo y las comprobaciones realizadas después de la carga no garantizan su seguridad.
+
+Además, se recomienda utilizar versiones compatibles de Python, `scikit-learn` y otras dependencias. Cargar modelos creados con versiones diferentes de `scikit-learn` no está oficialmente garantizado.
+
+Consulta [la investigación sobre persistencia](docs/persistencia_modelos.md) para conocer la comparación de formatos y las pruebas realizadas.
