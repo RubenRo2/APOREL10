@@ -107,6 +107,22 @@ def calcular_metricas(reales, predichos):
     }
 
 
+def actualizar_descripcion(info_modelo, descripcion):
+    """Guarda la descripción en la información del modelo."""
+    if not isinstance(info_modelo, dict):
+        raise ErrorRegresion(
+            "No hay ningún modelo al que asociar la descripción."
+        )
+
+    if not isinstance(descripcion, str):
+        raise ErrorRegresion(
+            "La descripción debe ser un texto."
+        )
+
+    info_modelo["descripcion"] = descripcion
+    return info_modelo
+
+
 def preparar_grafico(
     modelo,
     entradas,
@@ -283,6 +299,7 @@ def entrenar_regresion_lineal(
             "formula": generar_formula(
                 modelo, entradas, salida, decimales
             ),
+            "descripcion": "",
             "metricas": {
                 "entrenamiento": calcular_metricas(
                     y_train, pred_train
