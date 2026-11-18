@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel,
                                QFrame, QHeaderView, QScrollArea,
                                QAbstractButton, QButtonGroup, QCheckBox,
                                QGridLayout, QMenu, QRadioButton,
-                               QWidgetAction)
+                               QWidgetAction, QPlainTextEdit)
 from PySide6.QtCore import QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QImage, QPainter, QPixmap
 
@@ -24,7 +24,12 @@ from matplotlib.figure import Figure
 from aporel10.data_loader import ErrorImportacionDatos, cargar_datos
 from aporel10.column_selector import ErrorSeleccionColumnas, validar_seleccion
 from aporel10.data_splitter import ErrorSeparacionDatos, separar_datos
-from aporel10.model import ErrorRegresion, entrenar_regresion_lineal, preparar_grafico_variable
+from aporel10.model import (
+    ErrorRegresion,
+    actualizar_descripcion,
+    entrenar_regresion_lineal,
+    preparar_grafico_variable,
+)
 from aporel10.missing_values import (
     ErrorPreprocesado,
     aplicar_preprocesado,
@@ -623,6 +628,17 @@ class VentanaPrincipal(QMainWindow):
         )
         columna_resultados.addWidget(self.etiqueta_formula)
 
+        # Descripción del modelo. Solo se puede editar con un modelo creado.
+        columna_resultados.addWidget(QLabel("Descripción (opcional):"))
+        self.texto_descripcion = QPlainTextEdit()
+        self.texto_descripcion.setPlaceholderText(
+            "Por ejemplo: en qué consiste el modelo y con qué propósito "
+            "se creó."
+        )
+        self.texto_descripcion.setFixedHeight(70)
+        self.texto_descripcion.setEnabled(False)
+        columna_resultados.addWidget(self.texto_descripcion)
+
         # Tabla de métricas
         self.tabla_metricas = QTableWidget(2, 3)
         self.tabla_metricas.setHorizontalHeaderLabels(
@@ -708,6 +724,9 @@ class VentanaPrincipal(QMainWindow):
         self.boton_separar.clicked.connect(self.separar)
         self.boton_aplicar.clicked.connect(self.aplicar_preprocesado_gui)
         self.boton_crear_modelo.clicked.connect(self.crear_modelo_gui)
+        self.texto_descripcion.textChanged.connect(
+            self.guardar_descripcion
+        )
         self.combo_vista_modelo.currentIndexChanged.connect(
             self.actualizar_grafico_modelo
         )
@@ -1209,7 +1228,22 @@ class VentanaPrincipal(QMainWindow):
         self.boton_vista_inicial.setEnabled(False)
         self.canvas_modelo.draw_idle()
 
+        self.texto_descripcion.blockSignals(True)
+        self.texto_descripcion.clear()
+        self.texto_descripcion.blockSignals(False)
+        self.texto_descripcion.setEnabled(False)
+
         self.actualizar_boton_modelo()
+
+    def guardar_descripcion(self) -> None:
+        """Refleja cada cambio del texto en la información del modelo."""
+        if self.resultado_modelo is None:
+            return
+
+        actualizar_descripcion(
+            self.resultado_modelo,
+            self.texto_descripcion.toPlainText(),
+        )
 
     def crear_modelo_gui(self) -> None:
         """Solicita el entrenamiento y muestra los resultados."""
@@ -1255,6 +1289,12 @@ class VentanaPrincipal(QMainWindow):
         # Sustituir el modelo anterior
         self.modelo = resultado["modelo"]
         self.resultado_modelo = resultado
+
+        # Un modelo nuevo empieza con la descripción vacía.
+        self.texto_descripcion.blockSignals(True)
+        self.texto_descripcion.clear()
+        self.texto_descripcion.blockSignals(False)
+        self.texto_descripcion.setEnabled(True)
 
         # Cargar las columnas seleccionables sin disparar redibujados.
         self.combo_vista_modelo.blockSignals(True)

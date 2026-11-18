@@ -6,6 +6,7 @@ import pytest
 
 from aporel10.model import (
     ErrorRegresion,
+    actualizar_descripcion,
     entrenar_regresion_lineal,
     generar_formula,
 )
@@ -225,3 +226,57 @@ def test_formula_rechaza_numero_de_columnas_incorrecto():
             ["x", "otro"],
             "y",
         )
+
+
+def _entrenar_modelo_simple():
+    entrenamiento = pd.DataFrame({
+        "x": [0., 1., 2., 3.],
+        "y": [1., 3., 5., 7.],
+    })
+    test = pd.DataFrame({
+        "x": [4., 5.],
+        "y": [9., 11.],
+    })
+
+    return entrenar_regresion_lineal(entrenamiento, test, ["x"], "y")
+
+
+def test_modelo_nuevo_se_crea_con_descripcion_vacia():
+    resultado = _entrenar_modelo_simple()
+
+    assert resultado["descripcion"] == ""
+
+
+def test_descripcion_se_guarda_en_el_modelo():
+    resultado = _entrenar_modelo_simple()
+
+    actualizar_descripcion(resultado, "Predice y a partir de x.")
+
+    assert resultado["descripcion"] == "Predice y a partir de x."
+
+
+def test_descripcion_refleja_cada_cambio():
+    resultado = _entrenar_modelo_simple()
+
+    actualizar_descripcion(resultado, "Primera versión")
+    actualizar_descripcion(resultado, "Primera versión\ncorregida")
+
+    assert resultado["descripcion"] == "Primera versión\ncorregida"
+
+
+def test_modelo_nuevo_no_hereda_la_descripcion_anterior():
+    anterior = _entrenar_modelo_simple()
+    actualizar_descripcion(anterior, "Modelo anterior")
+
+    nuevo = _entrenar_modelo_simple()
+
+    assert nuevo["descripcion"] == ""
+    assert anterior["descripcion"] == "Modelo anterior"
+
+
+def test_descripcion_rechaza_modelo_inexistente_y_no_texto():
+    with pytest.raises(ErrorRegresion, match="ningún modelo"):
+        actualizar_descripcion(None, "Texto")
+
+    with pytest.raises(ErrorRegresion, match="texto"):
+        actualizar_descripcion(_entrenar_modelo_simple(), 123)
