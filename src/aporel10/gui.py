@@ -37,7 +37,13 @@ from aporel10.missing_values import (
     normalizar_columnas,
 )
 
-from aporel10.save_model import EXTENSION_MODELO, validar_extension
+from aporel10.save_model import (
+    EXTENSION_MODELO, 
+    ErrorGuardarModelo,
+    guardar_modelo,
+    validar_extension,
+    
+    )
 
 # Solo se muestran en el explorador los formatos que admite data_loader.
 FILTRO_DATOS = "Datos (*.csv *.xlsx *.xls *.sqlite *.db)"
@@ -1283,13 +1289,44 @@ class VentanaPrincipal(QMainWindow):
         return ruta_final
 
     def guardar_modelo_gui(self) -> None:
-        """Gestiona el guardado del modelo actual desde la interfaz."""
+        """Valida la descripción, pide ruta y guarda el modelo en disco."""
         if self.resultado_modelo is None:
             return
+
+        descripcion = self.resultado_modelo.get("descripcion", "").strip()
+        if not descripcion:
+            respuesta = QMessageBox.question(
+                self,
+                "Descripción vacía",
+                "El modelo no tiene descripción.\n"
+                "¿Quieres guardarlo igualmente sin descripción?",
+                QMessageBox.StandardButton.Yes
+                | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if respuesta != QMessageBox.StandardButton.Yes:
+                return
 
         ruta = self.elegir_ruta_guardado()
         if ruta is None:
             return
+
+        try:
+            ruta_guardada = guardar_modelo(self.resultado_modelo, ruta)
+        except ErrorGuardarModelo as error:
+            QMessageBox.critical(
+                self,
+                "Error al guardar el modelo",
+                str(error),
+            )
+            return
+
+        QMessageBox.information(
+            self,
+            "Modelo guardado",
+            "El modelo se ha guardado correctamente en:\n"
+            f"{ruta_guardada}",
+        )
 
 
     def crear_modelo_gui(self) -> None:
