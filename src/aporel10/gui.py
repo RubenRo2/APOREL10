@@ -37,9 +37,11 @@ from aporel10.missing_values import (
     normalizar_columnas,
 )
 
+from aporel10.save_model import EXTENSION_MODELO, validar_extension
 
 # Solo se muestran en el explorador los formatos que admite data_loader.
 FILTRO_DATOS = "Datos (*.csv *.xlsx *.xls *.sqlite *.db)"
+FILTRO_MODELO = f"Modelos (*{EXTENSION_MODELO})"
 VELOCIDAD_SCROLL = 5  # Píxeles de avance por cada clic de la rueda del ratón
 # Igual, pero para el desplazamiento de la ventana completa
 VELOCIDAD_SCROLL_VENTANA = 30
@@ -609,12 +611,15 @@ class VentanaPrincipal(QMainWindow):
         # Botón de creación
         self.boton_crear_modelo = QPushButton("Crear modelo")
         self.boton_crear_modelo.setEnabled(False)
+        self.boton_guardar_modelo = QPushButton("Guardar modelo")
+        self.boton_guardar_modelo.setEnabled(False)
         self.boton_vista_inicial = QPushButton("Vista inicial")
         self.boton_vista_inicial.setToolTip(
             "Deshace el movimiento y el zoom de la gráfica")
         self.boton_vista_inicial.setEnabled(False)
         fila_botones = QHBoxLayout()
         fila_botones.addWidget(self.boton_crear_modelo)
+        fila_botones.addWidget(self.boton_guardar_modelo)
         fila_botones.addWidget(self.boton_vista_inicial)
         fila_botones.addStretch()
         columna_resultados.addLayout(fila_botones)
@@ -685,7 +690,7 @@ class VentanaPrincipal(QMainWindow):
         self.canvas_modelo = CanvasGrafica(self.figura_modelo)
         self.canvas_modelo.setMinimumHeight(ALTO_GRAFICO)
 
-                # Selector de visualización. Solo estará activo tras entrenar.
+        # Selector de visualización. Solo estará activo tras entrenar.
         self.combo_vista_modelo = ComboSinRueda()
         self.combo_vista_modelo.addItem(
             "Regresión por variable", "variable"
@@ -718,6 +723,7 @@ class VentanaPrincipal(QMainWindow):
     def _conectar_señales(self) -> None:
         """Agrupa todas las conexiones de botones y eventos de texto."""
         self.boton_cargar.clicked.connect(self.elegir_archivo)
+        self.boton_guardar_modelo.clicked.connect(self.guardar_modelo_gui)
         self.boton_vista_inicial.clicked.connect(
             self.canvas_modelo.restablecer_vista)
         self.boton_validar.clicked.connect(self.validar_variables)
@@ -1232,6 +1238,7 @@ class VentanaPrincipal(QMainWindow):
         self.texto_descripcion.clear()
         self.texto_descripcion.blockSignals(False)
         self.texto_descripcion.setEnabled(False)
+        self.boton_guardar_modelo.setEnabled(False)
 
         self.actualizar_boton_modelo()
 
@@ -1244,6 +1251,46 @@ class VentanaPrincipal(QMainWindow):
             self.resultado_modelo,
             self.texto_descripcion.toPlainText(),
         )
+
+
+    def elegir_ruta_guardado(self) -> Path | None:
+        """Abre el diálogo para elegir dónde guardar el modelo en .pkl."""
+        ruta, _ = QFileDialog.getSaveFileName(
+            self,
+            "Guardar modelo",
+            f"modelo{EXTENSION_MODELO}",
+            FILTRO_MODELO,
+        )
+        if not ruta:
+            return None # El usuario canceló
+
+        ruta_original = Path(ruta)
+        ruta_final = validar_extension(ruta_original)
+
+        if ruta_final != ruta_original and ruta_final.exists():
+            respuesta = QMessageBox.question(
+                self,
+                "Sobrescribir archivo",
+                f"El archivo '{ruta_final.name}' ya existe.\n"
+                "¿Quieres sobrescribirlo?",
+                QMessageBox.StandardButton.Yes
+                | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if respuesta != QMessageBox.StandardButton.Yes:
+                return None
+
+        return ruta_final
+
+    def guardar_modelo_gui(self) -> None:
+        """Gestiona el guardado del modelo actual desde la interfaz."""
+        if self.resultado_modelo is None:
+            return
+
+        ruta = self.elegir_ruta_guardado()
+        if ruta is None:
+            return
+
 
     def crear_modelo_gui(self) -> None:
         """Solicita el entrenamiento y muestra los resultados."""
@@ -1295,6 +1342,7 @@ class VentanaPrincipal(QMainWindow):
         self.texto_descripcion.clear()
         self.texto_descripcion.blockSignals(False)
         self.texto_descripcion.setEnabled(True)
+        self.boton_guardar_modelo.setEnabled(True)
 
         # Cargar las columnas seleccionables sin disparar redibujados.
         self.combo_vista_modelo.blockSignals(True)
@@ -1350,7 +1398,6 @@ class VentanaPrincipal(QMainWindow):
             "se ha creado correctamente.",
         )
 
-    
     def actualizar_grafico_modelo(self, _indice: int = -1) -> None:
         """Cambia la vista o la columna sin reentrenar el modelo."""
         if self.resultado_modelo is None:
@@ -1397,7 +1444,6 @@ class VentanaPrincipal(QMainWindow):
                 str(error),
             )
 
-
     def dibujar_grafico_modelo(self, grafico: dict) -> None:
         """Dibuja los datos preparados por el módulo model."""
         self.figura_modelo.clear()
@@ -1405,7 +1451,7 @@ class VentanaPrincipal(QMainWindow):
         ejes.set_facecolor("#252525")
 
         if grafico["tipo"] in ("simple", "variable"):
-            
+
             ejes.set_title(
                 f"Efecto de {grafico['eje_x']} sobre {grafico['eje_y']}",
                 color="#e0e0e0",
