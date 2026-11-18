@@ -328,3 +328,43 @@ def entrenar_regresion_lineal(
         raise ErrorRegresion(
             f"No se ha podido entrenar el modelo: {exc}"
         ) from exc
+
+
+def predecir_modelo(resultado_modelo, valores):
+    """Predice una salida usando entradas identificadas por su nombre.
+
+    No requiere el dataset original. Valida entradas y utiliza el mismo orden
+    de columnas que se empleó al entrenar el estimador.
+    """
+    if not isinstance(resultado_modelo, dict) or "modelo" not in resultado_modelo:
+        raise ErrorRegresion("No hay un modelo disponible para predecir.")
+
+    entradas = resultado_modelo["entradas"]
+    if not isinstance(valores, dict):
+        raise ErrorRegresion("Los valores de entrada deben ser un diccionario.")
+
+    if set(valores) != set(entradas):
+        raise ErrorRegresion(
+            "Debes introducir un valor para cada columna de entrada."
+        )
+
+    try:
+        fila = {col: float(valores[col]) for col in entradas}
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ErrorRegresion("Las entradas deben ser números válidos.") from exc
+
+    if not np.isfinite(list(fila.values())).all():
+        raise ErrorRegresion("No se permiten valores infinitos ni NaN.")
+
+    try:
+        x = pd.DataFrame([fila], columns=entradas)
+        prediccion = float(resultado_modelo["modelo"].predict(x)[0])
+    except (ValueError, TypeError, IndexError) as exc:
+        raise ErrorRegresion(
+            f"No se pudo realizar la predicción: {exc}"
+        ) from exc
+
+    if not np.isfinite(prediccion):
+        raise ErrorRegresion("El modelo ha generado una predicción no válida.")
+
+    return prediccion

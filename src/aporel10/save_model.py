@@ -99,6 +99,14 @@ def construir_contenido_modelo(resultado_modelo):
             "La descripción del modelo debe ser una cadena de texto."
         )
 
+    # Un modelo recuperado conserva su información original: el usuario solo
+    # puede cambiar la descripción. No reescribimos el entorno de origen.
+    if "_contenido_guardado" in resultado_modelo:
+        original = resultado_modelo["_contenido_guardado"]
+        if not isinstance(original, dict):
+            raise ErrorGuardarModelo("Los metadatos originales no son válidos.")
+        return {**original, "descripcion": descripcion}
+
     return {
         "version_esquema": VERSION_ESQUEMA,
         "modelo": modelo,
