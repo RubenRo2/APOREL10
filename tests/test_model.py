@@ -8,7 +8,10 @@ from aporel10.model import (
     ErrorRegresion,
     actualizar_descripcion,
     entrenar_regresion_lineal,
+    formatear_prediccion,
     generar_formula,
+    interpretar_valores_prediccion,
+    predecir_modelo,
 )
 
 
@@ -280,3 +283,60 @@ def test_descripcion_rechaza_modelo_inexistente_y_no_texto():
 
     with pytest.raises(ErrorRegresion, match="texto"):
         actualizar_descripcion(_entrenar_modelo_simple(), 123)
+
+
+# --- Predicción ---
+
+def _modelo_para_predecir():
+    """Modelo entrenado con datos inventados (no siguen una recta exacta)."""
+    entrenamiento = pd.DataFrame({
+        "a": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        "b": [2.0, 1.0, 4.0, 3.0, 6.0, 5.0],
+        "y": [5.1, 4.2, 11.3, 9.7, 16.4, 13.9],
+    })
+    test = pd.DataFrame({"a": [7.0, 8.0], "b": [8.0, 7.0],
+                         "y": [21.5, 18.0]})
+    return entrenar_regresion_lineal(entrenamiento, test, ["a", "b"], "y")
+
+
+def test_prediccion_coincide_con_el_calculo_a_mano():
+    resultado = _modelo_para_predecir()
+    modelo = resultado["modelo"]
+    c1, c2 = modelo.coef_
+    esperado = c1 * 2.5 + c2 * (-1.0) + modelo.intercept_
+
+    prediccion = predecir_modelo(resultado, {"a": 2.5, "b": -1.0})
+
+    assert prediccion == pytest.approx(esperado)
+
+
+def test_prediccion_con_entradas_a_cero_es_el_termino_independiente():
+    resultado = _modelo_para_predecir()
+
+    prediccion = predecir_modelo(resultado, {"a": 0.0, "b": 0.0})
+
+    assert prediccion == pytest.approx(resultado["modelo"].intercept_)
+
+
+@pytest.mark.parametrize("texto, esperado", [
+    ("3.5", 3.5), ("3,5", 3.5), (" -2 ", -2.0),
+])
+def test_acepta_punto_o_coma_como_separador_decimal(texto, esperado):
+    valores = interpretar_valores_prediccion(["a", "b"],
+                                             {"a": texto, "b": "0"})
+
+    assert valores["a"] == esperado
+
+
+def test_error_indica_las_variables_que_faltan():
+    with pytest.raises(ErrorRegresion, match="Faltan valores para: a, b"):
+        interpretar_valores_prediccion(["a", "b"], {"a": " ", "b": ""})
+
+
+def test_error_indica_la_variable_no_numerica():
+    with pytest.raises(ErrorRegresion, match="no son números válidos: b"):
+        interpretar_valores_prediccion(["a", "b"], {"a": "1", "b": "dos"})
+
+
+def test_formato_del_resultado_con_los_decimales_de_la_formula():
+    assert formatear_prediccion("y", 12.345678) == "y = 12.3457"
