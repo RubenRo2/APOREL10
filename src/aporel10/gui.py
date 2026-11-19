@@ -40,6 +40,7 @@ from aporel10.missing_values import (
     normalizar_columnas,
 )
 
+from aporel10.load_model import ErrorCargarModelo, cargar_modelo
 from aporel10.save_model import (
     EXTENSION_MODELO, 
     ErrorGuardarModelo,
@@ -436,11 +437,17 @@ class VentanaPrincipal(QMainWindow):
         self.resultado_modelo = None
         self.datos_listos_para_modelo = False
 
+        # Modelo cargado desde un archivo (historia #24)
+        self.ruta_modelo: Path | None = None
+        self.modelo_cargado = False
+        self.cambios_sin_guardar = False
+
     def _crear_interfaz(self) -> None:
         """Crea todos los widgets y los organiza en layouts modulares."""
 
         # 1º Carga de datos
         self.boton_cargar = QPushButton("Cargar datos...")
+        self.boton_cargar_modelo = QPushButton("Cargar modelo...")
         self.etiqueta_ruta = QLabel("Ningún archivo cargado")
         self.tabla = QTableWidget()
 
@@ -450,6 +457,7 @@ class VentanaPrincipal(QMainWindow):
 
         fila_carga = QHBoxLayout()
         fila_carga.addWidget(self.boton_cargar)
+        fila_carga.addWidget(self.boton_cargar_modelo)
         fila_carga.addWidget(self.etiqueta_ruta, stretch=1)
 
         # 2º Selección de variables
@@ -517,6 +525,20 @@ class VentanaPrincipal(QMainWindow):
         layout_principal.addLayout(fila_variables_separacion, stretch=0)
         layout_principal.addWidget(self.grupo_preprocesado, stretch=0)
         layout_principal.addWidget(self.grupo_modelo, stretch=0)
+
+        # Secciones que necesitan datos: se ocultan con un modelo cargado,
+        # porque el archivo del modelo no contiene datos.
+        self.secciones_datos = [
+            self.tabla,
+            grupo_variables,
+            grupo_separacion,
+            self.grupo_preprocesado,
+            self.boton_crear_modelo,
+            self.boton_vista_inicial,
+            self.contenedor_selector_grafico,
+            self.etiqueta_contexto_grafico,
+            self.canvas_modelo,
+        ]
         # Permitir desplazamiento para que cada sección conserve su altura
         desplazamiento = QScrollArea()
         desplazamiento.setWidgetResizable(True)
@@ -730,7 +752,9 @@ class VentanaPrincipal(QMainWindow):
         self.combo_variable_modelo.setEnabled(False)
         self.etiqueta_variable_modelo = QLabel("Variable de entrada:")
 
-        fila_selector = QHBoxLayout()
+        self.contenedor_selector_grafico = QWidget()
+        fila_selector = QHBoxLayout(self.contenedor_selector_grafico)
+        fila_selector.setContentsMargins(0, 0, 0, 0)
         fila_selector.addWidget(QLabel("Visualización:"))
         fila_selector.addWidget(self.combo_vista_modelo)
         fila_selector.addSpacing(12)
@@ -742,13 +766,14 @@ class VentanaPrincipal(QMainWindow):
         self.etiqueta_contexto_grafico.setWordWrap(True)
 
         layout_modelo.addLayout(fila_resultados)
-        layout_modelo.addLayout(fila_selector)
+        layout_modelo.addWidget(self.contenedor_selector_grafico)
         layout_modelo.addWidget(self.etiqueta_contexto_grafico)
         layout_modelo.addWidget(self.canvas_modelo, stretch=1)
 
     def _conectar_señales(self) -> None:
         """Agrupa todas las conexiones de botones y eventos de texto."""
         self.boton_cargar.clicked.connect(self.elegir_archivo)
+        self.boton_cargar_modelo.clicked.connect(self.elegir_modelo_gui)
         self.boton_guardar_modelo.clicked.connect(self.guardar_modelo_gui)
         self.boton_vista_inicial.clicked.connect(
             self.canvas_modelo.restablecer_vista)
@@ -901,6 +926,9 @@ class VentanaPrincipal(QMainWindow):
     # ----------------------------LÓGICA DE EVENTOS----------------------------
     def elegir_archivo(self) -> None:
         """Abre el explorador de archivos para elegir un dataset."""
+        if not self._confirmar_descartar_cambios(
+                "Si cargas un dataset, se descartará el modelo actual."):
+            return
         ruta, _ = QFileDialog.getOpenFileName(
             self, "Seleccionar dataset", "", FILTRO_DATOS)
         if not ruta:
@@ -1270,6 +1298,11 @@ class VentanaPrincipal(QMainWindow):
         self.actualizar_boton_modelo()
         self.preparar_prediccion()
 
+        self.ruta_modelo = None
+        self.modelo_cargado = False
+        self.cambios_sin_guardar = False
+        self.mostrar_modo_modelo_cargado(False)
+
     def preparar_prediccion(self) -> None:
         """Crea un campo por cada entrada del modelo actual."""
         while self.formulario_prediccion.rowCount():
@@ -1318,6 +1351,7 @@ class VentanaPrincipal(QMainWindow):
             self.resultado_modelo,
             self.texto_descripcion.toPlainText(),
         )
+        self.cambios_sin_guardar = True
 
 
     def elegir_ruta_guardado(self) -> Path | None:
@@ -1325,7 +1359,8 @@ class VentanaPrincipal(QMainWindow):
         ruta, _ = QFileDialog.getSaveFileName(
             self,
             "Guardar modelo",
-            f"modelo{EXTENSION_MODELO}",
+            str(self.ruta_modelo) if self.ruta_modelo
+            else f"modelo{EXTENSION_MODELO}",
             FILTRO_MODELO,
         )
         if not ruta:
@@ -1381,6 +1416,9 @@ class VentanaPrincipal(QMainWindow):
                 str(error),
             )
             return
+
+        self.ruta_modelo = Path(ruta_guardada).resolve()
+        self.cambios_sin_guardar = False
 
         QMessageBox.information(
             self,
@@ -1466,35 +1504,97 @@ class VentanaPrincipal(QMainWindow):
             "Los puntos muestran valores reales sin ajustar."
         )
 
-        # Mostrar la fórmula
-        self.etiqueta_formula.setText(
-            resultado["formula"]
-        )
-
-        # Mostrar las métricas
-        for columna, conjunto in (
-            (1, "entrenamiento"),
-            (2, "test"),
-        ):
-            metricas = resultado["metricas"][conjunto]
-
-            self.tabla_metricas.item(
-                0, columna
-            ).setText(
-                f"{metricas['r2']:.4f}"
-            )
-
-            self.tabla_metricas.item(
-                1, columna
-            ).setText(
-                f"{metricas['ecm']:,.4f}"
-            )
+        self.mostrar_formula_y_metricas(resultado)
+        # Un modelo recién creado todavía no está guardado.
+        self.cambios_sin_guardar = True
 
         QMessageBox.information(
             self,
             "Modelo creado",
             "El modelo de regresión lineal "
             "se ha creado correctamente.",
+        )
+
+    def mostrar_formula_y_metricas(self, resultado: dict) -> None:
+        """Muestra la fórmula, las columnas y las métricas de un modelo."""
+        self.etiqueta_formula.setText(
+            f"{resultado['formula']}\n"
+            f"Entradas: {', '.join(resultado['entradas'])}  ·  "
+            f"Salida: {resultado['salida']}"
+        )
+        for columna, conjunto in ((1, "entrenamiento"), (2, "test")):
+            metricas = resultado["metricas"][conjunto]
+            self.tabla_metricas.item(0, columna).setText(
+                f"{metricas['r2']:.4f}")
+            self.tabla_metricas.item(1, columna).setText(
+                f"{metricas['ecm']:,.4f}")
+
+    def mostrar_modo_modelo_cargado(self, cargado: bool) -> None:
+        """Oculta las secciones que necesitan datos si el modelo es de un
+        archivo, y las vuelve a mostrar en caso contrario."""
+        for seccion in getattr(self, "secciones_datos", []):
+            seccion.setVisible(not cargado)
+
+    def _confirmar_descartar_cambios(self, consecuencia: str) -> bool:
+        """Pide confirmación si el modelo actual tiene cambios sin guardar."""
+        if self.resultado_modelo is None or not self.cambios_sin_guardar:
+            return True
+        respuesta = QMessageBox.question(
+            self,
+            "Cambios sin guardar",
+            "El modelo actual tiene cambios sin guardar. "
+            f"{consecuencia}\n\n¿Quieres continuar sin guardarlo?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        return respuesta == QMessageBox.StandardButton.Yes
+
+    def elegir_modelo_gui(self) -> None:
+        """Abre el explorador para elegir un modelo guardado."""
+        if not self._confirmar_descartar_cambios(
+                "Si cargas otro modelo, se perderán esos cambios."):
+            return
+        ruta, _ = QFileDialog.getOpenFileName(
+            self, "Cargar modelo", "", FILTRO_MODELO)
+        if not ruta:
+            return  # el usuario cerró el explorador sin elegir nada
+        self.cargar_modelo_gui(ruta)
+
+    def cargar_modelo_gui(self, ruta: str) -> None:
+        """Carga un modelo guardado y muestra su información.
+
+        Si el archivo no es válido, muestra el error y conserva el estado.
+        """
+        try:
+            resultado = cargar_modelo(ruta)
+        except ErrorCargarModelo as error:
+            QMessageBox.critical(self, "Error al cargar el modelo", str(error))
+            return
+
+        # El archivo no contiene datos: se descartan el dataset y los pasos
+        # hechos con él.
+        self.limpiar_interfaz()
+
+        self.modelo = resultado["modelo"]
+        self.resultado_modelo = resultado
+        self.ruta_modelo = Path(ruta).resolve()
+        self.modelo_cargado = True
+        self.cambios_sin_guardar = False
+
+        self.mostrar_formula_y_metricas(resultado)
+        self.texto_descripcion.blockSignals(True)
+        self.texto_descripcion.setPlainText(resultado["descripcion"])
+        self.texto_descripcion.blockSignals(False)
+        self.texto_descripcion.setEnabled(True)
+        self.boton_guardar_modelo.setEnabled(True)
+        self.preparar_prediccion()
+        self.mostrar_modo_modelo_cargado(True)
+
+        QMessageBox.information(
+            self,
+            "Modelo cargado",
+            "El modelo se ha cargado correctamente desde:\n"
+            f"{self.ruta_modelo}",
         )
 
     def actualizar_grafico_modelo(self, _indice: int = -1) -> None:
