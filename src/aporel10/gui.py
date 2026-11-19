@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel,
                                QFrame, QHeaderView, QScrollArea,
                                QAbstractButton, QButtonGroup, QCheckBox,
                                QGridLayout, QMenu, QRadioButton,
-                               QWidgetAction, QPlainTextEdit)
+                               QWidgetAction, QPlainTextEdit, QFormLayout)
 from PySide6.QtCore import QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QImage, QPainter, QPixmap
 
@@ -28,6 +28,9 @@ from aporel10.model import (
     ErrorRegresion,
     actualizar_descripcion,
     entrenar_regresion_lineal,
+    formatear_prediccion,
+    interpretar_valores_prediccion,
+    predecir_modelo,
     preparar_grafico_variable,
 )
 from aporel10.missing_values import (
@@ -681,6 +684,23 @@ class VentanaPrincipal(QMainWindow):
                 )
                 self.tabla_metricas.setItem(fila, columna, valor)
 
+                self.tabla_metricas.setItem(fila, columna, valor)
+
+        # Predicción. Se habilita cuando hay un modelo creado o cargado.
+        self.grupo_prediccion = QGroupBox("Predicción")
+        layout_prediccion = QVBoxLayout(self.grupo_prediccion)
+        self.formulario_prediccion = QFormLayout()
+        self.campos_prediccion: dict[str, QLineEdit] = {}
+        self.boton_predecir = QPushButton("Realizar predicción")
+        self.etiqueta_prediccion = QLabel("")
+        self.etiqueta_prediccion.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        layout_prediccion.addLayout(self.formulario_prediccion)
+        layout_prediccion.addWidget(self.boton_predecir)
+        layout_prediccion.addWidget(self.etiqueta_prediccion)
+        self.grupo_prediccion.setEnabled(False)
+        columna_resultados.addWidget(self.grupo_prediccion)
         columna_resultados.addStretch()
 
         fila_resultados = QHBoxLayout()
@@ -736,6 +756,7 @@ class VentanaPrincipal(QMainWindow):
         self.boton_separar.clicked.connect(self.separar)
         self.boton_aplicar.clicked.connect(self.aplicar_preprocesado_gui)
         self.boton_crear_modelo.clicked.connect(self.crear_modelo_gui)
+        self.boton_predecir.clicked.connect(self.realizar_prediccion_gui)
         self.texto_descripcion.textChanged.connect(
             self.guardar_descripcion
         )
@@ -1247,7 +1268,47 @@ class VentanaPrincipal(QMainWindow):
         self.boton_guardar_modelo.setEnabled(False)
 
         self.actualizar_boton_modelo()
+        self.preparar_prediccion()
 
+    def preparar_prediccion(self) -> None:
+        """Crea un campo por cada entrada del modelo actual."""
+        while self.formulario_prediccion.rowCount():
+            self.formulario_prediccion.removeRow(0)
+        self.campos_prediccion = {}
+        self.etiqueta_prediccion.setText("")
+
+        if self.resultado_modelo is None:
+            self.grupo_prediccion.setEnabled(False)
+            return
+
+        for entrada in self.resultado_modelo["entradas"]:
+            campo = QLineEdit()
+            campo.setPlaceholderText("Número, p. ej. 3.5 o 3,5")
+            self.campos_prediccion[entrada] = campo
+            self.formulario_prediccion.addRow(f"{entrada}:", campo)
+        self.grupo_prediccion.setEnabled(True)
+
+    def realizar_prediccion_gui(self) -> None:
+        """Calcula la salida del modelo con los valores introducidos."""
+        if self.resultado_modelo is None:
+            return
+        self.etiqueta_prediccion.setText("")
+        textos = {
+            entrada: campo.text()
+            for entrada, campo in self.campos_prediccion.items()
+        }
+        try:
+            valores = interpretar_valores_prediccion(
+                self.resultado_modelo["entradas"], textos
+            )
+            prediccion = predecir_modelo(self.resultado_modelo, valores)
+        except ErrorRegresion as error:
+            QMessageBox.warning(self, "Predicción no válida", str(error))
+            return
+        self.etiqueta_prediccion.setText(
+            formatear_prediccion(self.resultado_modelo["salida"], prediccion)
+        )
+    
     def guardar_descripcion(self) -> None:
         """Refleja cada cambio del texto en la información del modelo."""
         if self.resultado_modelo is None:
@@ -1373,6 +1434,7 @@ class VentanaPrincipal(QMainWindow):
         # Sustituir el modelo anterior
         self.modelo = resultado["modelo"]
         self.resultado_modelo = resultado
+        self.preparar_prediccion()
 
         # Un modelo nuevo empieza con la descripción vacía.
         self.texto_descripcion.blockSignals(True)
