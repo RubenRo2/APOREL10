@@ -368,3 +368,55 @@ def predecir_modelo(resultado_modelo, valores):
         raise ErrorRegresion("El modelo ha generado una predicción no válida.")
 
     return prediccion
+
+
+def interpretar_valores_prediccion(entradas, textos):
+    """Convierte los textos escritos por el usuario en números.
+
+    Acepta la coma o el punto como separador decimal ("3,5" y "3.5").
+
+    Args:
+        entradas: nombres de las columnas de entrada del modelo.
+        textos: diccionario con el texto escrito para cada entrada.
+
+    Returns:
+        Diccionario con el valor numérico de cada entrada.
+
+    Raises:
+        ErrorRegresion: si falta algún valor o alguno no es numérico. El
+            mensaje indica qué variables fallan.
+    """
+    faltan = []
+    no_validas = []
+    valores = {}
+    for columna in entradas:
+        texto = str(textos.get(columna, "")).strip()
+        if not texto:
+            faltan.append(columna)
+            continue
+        try:
+            numero = float(texto.replace(",", "."))
+        except ValueError:
+            no_validas.append(columna)
+            continue
+        if not np.isfinite(numero):
+            no_validas.append(columna)
+            continue
+        valores[columna] = numero
+
+    mensajes = []
+    if faltan:
+        mensajes.append(f"Faltan valores para: {', '.join(faltan)}.")
+    if no_validas:
+        mensajes.append(
+            "Estos valores no son números válidos: "
+            f"{', '.join(no_validas)}."
+        )
+    if mensajes:
+        raise ErrorRegresion(" ".join(mensajes))
+    return valores
+
+
+def formatear_prediccion(salida, prediccion, decimales=4):
+    """Devuelve el texto '<salida> = <valor>' con los decimales de la fórmula."""
+    return f"{salida} = {prediccion:.{decimales}f}"
