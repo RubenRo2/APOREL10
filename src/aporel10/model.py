@@ -179,6 +179,52 @@ def preparar_grafico(
         "linea_max": float(valores.max()),
     }
 
+def preparar_grafico_predichos(y_train, y_test, pred_train, pred_test):
+    """Prepara la comparación entre valores reales y predichos.
+
+    La línea representa la tendencia de las predicciones de test,
+    agrupadas por valor real, sin entrenar otro modelo.
+    """
+    train_real = y_train.to_numpy(dtype=float)
+    test_real = y_test.to_numpy(dtype=float)
+
+    train_predicho = np.asarray(pred_train, dtype=float)
+    test_predicho = np.asarray(pred_test, dtype=float)
+
+    valores = np.concatenate((
+        train_real,
+        test_real,
+        train_predicho,
+        test_predicho,
+    ))
+
+    # Ordenar las observaciones de test por su valor real.
+    orden = np.argsort(test_real, kind="stable")
+
+    # Agrupar en un máximo de 30 intervalos con cantidades
+    # similares de observaciones para evitar una línea ilegible.
+    grupos = np.array_split(orden, min(30, len(orden)))
+
+    linea_x = np.array([
+        test_real[grupo].mean() for grupo in grupos
+    ])
+
+    linea_y = np.array([
+        test_predicho[grupo].mean() for grupo in grupos
+    ])
+
+    return {
+        "tipo": "predichos",
+        "train_real": train_real,
+        "train_predicho": train_predicho,
+        "test_real": test_real,
+        "test_predicho": test_predicho,
+        "linea_min": float(valores.min()),
+        "linea_max": float(valores.max()),
+        "linea_x": linea_x,
+        "linea_y": linea_y,
+    }
+
 
 def preparar_grafico_variable(
     modelo,
@@ -318,6 +364,9 @@ def entrenar_regresion_lineal(
                 y_test,
                 pred_train,
                 pred_test,
+            ),
+            "grafico_predichos": preparar_grafico_predichos(
+                y_train, y_test, pred_train, pred_test
             ),
         }
 

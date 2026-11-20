@@ -1497,17 +1497,9 @@ class VentanaPrincipal(QMainWindow):
                 self.salida,
             )
 
-            # Vista inicial: primera entrada, manteniendo las demás
-            # en sus medias del conjunto de entrenamiento.
-            grafico = preparar_grafico_variable(
-                resultado["modelo"],
-                self.datos_entrenamiento,
-                self.datos_test,
-                resultado["entradas"],
-                resultado["salida"],
-                resultado["entradas"][0],
-            )
-            self.dibujar_grafico_modelo(grafico)
+            
+            # Vista inicial: comparación entre valores reales y predichos.
+            self.dibujar_grafico_modelo(resultado["grafico_predichos"])
 
         except ErrorRegresion as error:
             QMessageBox.warning(
@@ -1541,23 +1533,21 @@ class VentanaPrincipal(QMainWindow):
         self.combo_vista_modelo.blockSignals(True)
         self.combo_variable_modelo.blockSignals(True)
 
-        self.combo_vista_modelo.setCurrentIndex(0)
+        self.combo_vista_modelo.setCurrentIndex(1)
         self.combo_variable_modelo.clear()
         self.combo_variable_modelo.addItems(resultado["entradas"])
 
         self.combo_variable_modelo.blockSignals(False)
         self.combo_vista_modelo.blockSignals(False)
 
-        multiple = len(resultado["entradas"]) > 1
-
-        self.combo_vista_modelo.setEnabled(multiple)
-        self.combo_variable_modelo.setEnabled(multiple)
-        self.etiqueta_variable_modelo.setEnabled(multiple)
+        self.combo_vista_modelo.setEnabled(True)
+        self.combo_variable_modelo.setEnabled(False)
+        self.etiqueta_variable_modelo.setEnabled(False)
 
         self.etiqueta_contexto_grafico.setText(
-            "Recta del modelo completo: las otras variables se "
-            "mantienen en sus medias de entrenamiento. "
-            "Los puntos muestran valores reales sin ajustar."
+            "La recta continua ajusta los valores reales y predichos "
+            "de entrenamiento y test. La diagonal discontinua "
+            "representa predicciones perfectas (y = x)."
         )
 
         self.mostrar_formula_y_metricas(resultado)
@@ -1684,10 +1674,12 @@ class VentanaPrincipal(QMainWindow):
                 )
 
             else:
-                grafico = self.resultado_modelo["grafico"]
+                grafico = self.resultado_modelo["grafico_predichos"]
 
                 self.etiqueta_contexto_grafico.setText(
-                    "La diagonal representa predicciones perfectas (y = x)."
+                    "La recta continua ajusta los valores reales y predichos "
+                    "de entrenamiento y test. La diagonal discontinua "
+                    "representa predicciones perfectas (y = x)."
                 )
 
             self.dibujar_grafico_modelo(grafico)
@@ -1744,6 +1736,9 @@ class VentanaPrincipal(QMainWindow):
             ejes.set_ylabel(grafico["eje_y"])
 
         else:
+
+            ejes.set_title("Valores reales vs. predichos", color="#e0e0e0")
+
             ejes.scatter(
                 grafico["train_real"],
                 grafico["train_predicho"],
@@ -1776,6 +1771,16 @@ class VentanaPrincipal(QMainWindow):
                 color="tab:red",
                 linestyle="--",
                 linewidth=2,
+            )
+
+            # Línea de tendencia obtenida de las predicciones del modelo.
+            ejes.plot(
+                grafico["linea_x"],
+                grafico["linea_y"],
+                label="Tendencia de predicciones (test)",
+                color="#66e0a3",
+                linewidth=3,
+                zorder=10,
             )
 
             ejes.set_xlabel("Valor real")
