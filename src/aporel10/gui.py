@@ -42,12 +42,12 @@ from aporel10.missing_values import (
 
 from aporel10.load_model import ErrorCargarModelo, cargar_modelo
 from aporel10.save_model import (
-    EXTENSION_MODELO, 
+    EXTENSION_MODELO,
     ErrorGuardarModelo,
     guardar_modelo,
     validar_extension,
-    
-    )
+
+)
 
 # Solo se muestran en el explorador los formatos que admite data_loader.
 FILTRO_DATOS = "Datos (*.csv *.xlsx *.xls *.sqlite *.db)"
@@ -203,6 +203,7 @@ class CanvasGrafica(FigureCanvas):
 
     def __init__(self, figura: Figure) -> None:
         super().__init__(figura)
+        self._zoom_activo = False
         self._ejes_arrastrados = None
         self._vista_inicial = None
         self._dibujado = None
@@ -215,6 +216,16 @@ class CanvasGrafica(FigureCanvas):
         self._animacion_zoom = QTimer(self)
         self._animacion_zoom.setInterval(INTERVALO_ANIMACION_MS)
         self._animacion_zoom.timeout.connect(self._avanzar_zoom)
+
+        self.boton_zoom = QPushButton("🔍", self)
+        self.boton_zoom.setObjectName("botonZoomGrafica")
+        self.boton_zoom.setCheckable(True)
+        self.boton_zoom.setFixedSize(36, 36)
+        self.boton_zoom.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.boton_zoom.setToolTip("Zoom desactivado (pulsa para activar)")
+        self.boton_zoom.setVisible(False)
+        self.boton_zoom.toggled.connect(self.establecer_zoom_activo)
+
         self.mpl_connect("button_press_event", self._empezar_arrastre)
         self.mpl_connect("motion_notify_event", self._arrastrar)
         self.mpl_connect("button_release_event", self._terminar_arrastre)
@@ -228,9 +239,14 @@ class CanvasGrafica(FigureCanvas):
             ejes = self.figure.axes[0]
             self._vista_inicial = (ejes.get_xlim(), ejes.get_ylim())
             self.setCursor(Qt.CursorShape.OpenHandCursor)
+            self.boton_zoom.setVisible(True)
+            self.boton_zoom.raise_()
+            self._posicionar_boton_zoom()
         else:
             self._vista_inicial = None
             self.unsetCursor()
+            self.establecer_zoom_activo(False)
+            self.boton_zoom.setVisible(False)
 
     def restablecer_vista(self) -> None:
         """Vuelve a la vista recordada."""
@@ -241,6 +257,32 @@ class CanvasGrafica(FigureCanvas):
         ejes.set_xlim(self._vista_inicial[0])
         ejes.set_ylim(self._vista_inicial[1])
         self.draw_idle()
+
+    def establecer_zoom_activo(self, activo: bool) -> None:
+        """Activa o desactiva el zoom con rueda o gestos sobre la gráfica."""
+        self._zoom_activo = activo
+        if self.boton_zoom.isChecked() != activo:
+            self.boton_zoom.blockSignals(True)
+            self.boton_zoom.setChecked(activo)
+            self.boton_zoom.blockSignals(False)
+        if not activo:
+            self._cancelar_zoom()
+        self.boton_zoom.setToolTip(
+            "Zoom activado (pulsa para desactivar)"
+            if activo
+            else "Zoom desactivado (pulsa para activar)"
+        )
+
+    def _posicionar_boton_zoom(self) -> None:
+        """Coloca el botón de lupa en la esquina inferior derecha."""
+        margen = 14
+        x = self.width() - self.boton_zoom.width() - margen
+        y = self.height() - self.boton_zoom.height() - margen
+        self.boton_zoom.move(max(0, x), max(0, y))
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._posicionar_boton_zoom()
 
     def zoom_en_curso(self) -> bool:
         """Indica si la animación del zoom sigue avanzando."""
@@ -264,8 +306,9 @@ class CanvasGrafica(FigureCanvas):
             self._pintar_vista_previa()
 
     def wheelEvent(self, event) -> None:
-        # Outside the axes the wheel keeps scrolling the window
-        if self.inaxes(self.mouseEventCoords(event)) is None:
+        # Outside the axes or with zoom disabled, keep scrolling the window
+        if (not self._zoom_activo
+                or self.inaxes(self.mouseEventCoords(event)) is None):
             event.ignore()
         else:
             super().wheelEvent(event)
@@ -920,6 +963,21 @@ class VentanaPrincipal(QMainWindow):
             QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
                 background: none;
             }
+            QPushButton#botonZoomGrafica {
+                border-radius: 18px;
+                padding: 0px;
+                font-size: 16px;
+                background-color: rgba(45, 45, 45, 220);
+                border: 1px solid #666666;
+            }
+            QPushButton#botonZoomGrafica:hover {
+                background-color: rgba(70, 70, 70, 240);
+                border: 1px solid #8ab4f8;
+            }
+            QPushButton#botonZoomGrafica:checked {
+                background-color: #2b4c7e;
+                border: 2px solid #8ab4f8;
+            }
 
         """)
 
@@ -1341,7 +1399,7 @@ class VentanaPrincipal(QMainWindow):
         self.etiqueta_prediccion.setText(
             formatear_prediccion(self.resultado_modelo["salida"], prediccion)
         )
-    
+
     def guardar_descripcion(self) -> None:
         """Refleja cada cambio del texto en la información del modelo."""
         if self.resultado_modelo is None:
@@ -1353,7 +1411,6 @@ class VentanaPrincipal(QMainWindow):
         )
         self.cambios_sin_guardar = True
 
-
     def elegir_ruta_guardado(self) -> Path | None:
         """Abre el diálogo para elegir dónde guardar el modelo en .pkl."""
         ruta, _ = QFileDialog.getSaveFileName(
@@ -1364,7 +1421,7 @@ class VentanaPrincipal(QMainWindow):
             FILTRO_MODELO,
         )
         if not ruta:
-            return None # El usuario canceló
+            return None  # El usuario canceló
 
         ruta_original = Path(ruta)
         ruta_final = validar_extension(ruta_original)
@@ -1426,7 +1483,6 @@ class VentanaPrincipal(QMainWindow):
             "El modelo se ha guardado correctamente en:\n"
             f"{ruta_guardada}",
         )
-
 
     def crear_modelo_gui(self) -> None:
         """Solicita el entrenamiento y muestra los resultados."""

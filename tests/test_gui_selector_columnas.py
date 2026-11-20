@@ -419,12 +419,23 @@ def test_rueda_acerca_y_aleja(grafica):
     inicial = limites(grafica)
     ancho_inicial = inicial[1] - inicial[0]
 
+    grafica.canvas_modelo.boton_zoom.click()
+
     evento = mover_rueda(grafica)
     x_min, x_max, _, _ = limites(grafica)
     assert evento.isAccepted()
     assert x_max - x_min == pytest.approx(ancho_inicial * FACTOR_ZOOM_RUEDA)
 
     mover_rueda(grafica, notches=-1)
+    assert limites(grafica) == pytest.approx(inicial)
+
+
+def test_rueda_sin_activar_zoom_ignora_evento(grafica):
+    inicial = limites(grafica)
+
+    evento = mover_rueda(grafica)
+
+    assert not evento.isAccepted()
     assert limites(grafica) == pytest.approx(inicial)
 
 
