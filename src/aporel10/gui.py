@@ -96,6 +96,7 @@ class SelectorColumnas(QPushButton):
         super().__init__()
         self._multiple = multiple
         self._casillas: list[tuple[str, QAbstractButton]] = []
+        self._grupo: QButtonGroup | None = None
         self._menu = QMenu(self)
         self.setMenu(self._menu)
         self.setFixedWidth(ANCHO_SELECTOR)
@@ -105,6 +106,7 @@ class SelectorColumnas(QPushButton):
         """Sustituye las opciones; un selector único marca la primera."""
         self._menu.clear()
         self._casillas = []
+        self._grupo = None
         if columnas:
             self._menu.addAction(self._crear_accion(columnas))
         self.setEnabled(bool(columnas))
@@ -120,7 +122,28 @@ class SelectorColumnas(QPushButton):
     def seleccionar(self, columnas: list[str]) -> None:
         """Marca exactamente las columnas indicadas."""
         for nombre, casilla in self._casillas:
-            casilla.setChecked(nombre in columnas)
+            casilla.setChecked(nombre in columnas and casilla.isEnabled())
+
+    def deshabilitar_opciones(self, excluir: list[str]) -> None:
+        """Deshabilita las columnas indicadas y las desmarca si estaban activas."""
+        bloqueada = set(excluir)
+        desmarcada = False
+
+        for nombre, casilla in self._casillas:
+            habilitada = nombre not in bloqueada
+            casilla.setEnabled(habilitada)
+            if not habilitada and casilla.isChecked():
+                desmarcada = True
+            if self._grupo is not None and not self._multiple:
+                self._grupo.setExclusive(False)
+            casilla.blockSignals(True)
+            casilla.setChecked(False)
+            casilla.blockSignals(False)
+            if self._grupo is not None and not self._multiple:
+                self._grupo.setExclusive(True)
+
+        if desmarcada:
+            self._actualizar_texto()
 
     def _crear_accion(self, columnas: list[str]) -> QWidgetAction:
         """Coloca las opciones en una rejilla que cabe en la pantalla."""
@@ -128,6 +151,7 @@ class SelectorColumnas(QPushButton):
         rejilla = QGridLayout(contenedor)
         grupo = QButtonGroup(contenedor)
         grupo.setExclusive(not self._multiple)
+        self._grupo = grupo
 
         for nombre in columnas:
             casilla = self._crear_casilla(nombre)
@@ -838,7 +862,7 @@ class VentanaPrincipal(QMainWindow):
         self.combo_estrategia.currentIndexChanged.connect(
             self.actualizar_opcion_constante)
         self.selector_entradas.seleccion_cambiada.connect(
-            self.descartar_seleccion)
+            self.actualizar_entradas_seleccionadas)
         self.selector_salida.seleccion_cambiada.connect(
             self.descartar_seleccion)
         self.entrada_porcentaje.textChanged.connect(
@@ -882,7 +906,7 @@ class VentanaPrincipal(QMainWindow):
 
             SelectorColumnas { text-align: left; }
             QMenu { border: 1px solid #555; }
-
+            QRadioButton:disabled { color: #666666; }
             QComboBox, QLineEdit {
                 background-color: #2b2b2b;
                 color: white;
@@ -1044,6 +1068,13 @@ class VentanaPrincipal(QMainWindow):
 
         self.entrada_porcentaje.setText("20")
         self.entrada_semilla.setText("42")
+        self.descartar_seleccion()
+
+    def actualizar_entradas_seleccionadas(self) -> None:
+        """Bloquea en la salida las columnas marcadas como entrada."""
+        self.selector_salida.deshabilitar_opciones(
+            self.selector_entradas.seleccionadas()
+        )
         self.descartar_seleccion()
 
     def descartar_seleccion(self) -> None:
@@ -1497,7 +1528,6 @@ class VentanaPrincipal(QMainWindow):
                 self.salida,
             )
 
-            
             # Vista inicial: comparación entre valores reales y predichos.
             self.dibujar_grafico_modelo(resultado["grafico_predichos"])
 
