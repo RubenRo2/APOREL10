@@ -1804,14 +1804,15 @@ class VentanaPrincipal(QMainWindow):
             )
 
             # Línea de tendencia obtenida de las predicciones del modelo.
-            ejes.plot(
-                grafico["linea_x"],
-                grafico["linea_y"],
-                label="Tendencia de predicciones (test)",
-                color="#66e0a3",
-                linewidth=3,
-                zorder=10,
-            )
+            if "linea_x" in grafico and "linea_y" in grafico:
+                ejes.plot(
+                    grafico["linea_x"],
+                    grafico["linea_y"],
+                    label="Tendencia de predicciones (test)",
+                    color="#66e0a3",
+                    linewidth=3,
+                    zorder=10,
+                )
 
             ejes.set_xlabel("Valor real")
             ejes.set_ylabel("Valor predicho")
